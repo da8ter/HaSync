@@ -1,0 +1,77 @@
+{
+    "elements": [],
+    "actions": [
+        {
+            "type": "Button",
+            "caption": "Geräteliste aktualisieren",
+            "onClick": "HAC_RefreshDeviceList($id);"
+        },
+        {
+            "type": "Button",
+            "caption": "Home Assistant Geräte erkennen",
+            "onClick": "HAC_DiscoverDevices($id);"
+        },
+        {
+            "type": "Configurator",
+            "name": "DeviceConfigurator",
+            "caption": "Home Assistant Geräte",
+            "rowCount": 15,
+            "add": false,
+            "delete": false,
+            "sort": {
+                "column": "name",
+                "direction": "ascending"
+            },
+            "columns": [
+                {
+                    "caption": "ID",
+                    "name": "id",
+                    "width": "150px"
+                },
+                {
+                    "caption": "Name",
+                    "name": "name",
+                    "width": "250px"
+                },
+                {
+                    "caption": "Typ",
+                    "name": "component",
+                    "width": "120px"
+                },
+                {
+                    "caption": "Hersteller",
+                    "name": "manufacturer",
+                    "width": "180px"
+                },
+                {
+                    "caption": "Modell",
+                    "name": "model",
+                    "width": "180px"
+                },
+                {
+                    "caption": "Bereich",
+                    "name": "area",
+                    "width": "120px"
+                }
+            ],
+            "values": []
+        }
+    ],
+    "status": [
+        {
+            "code": 101,
+            "icon": "active",
+            "caption": "Homeassistant Konfigurator wird erstellt"
+        },
+        {
+            "code": 102,
+            "icon": "active",
+            "caption": "Homeassistant Konfigurator ist aktiv"
+        },
+        {
+            "code": 104,
+            "icon": "inactive",
+            "caption": "Homeassistant Konfigurator ist inaktiv"
+        }
+    ]
+} 

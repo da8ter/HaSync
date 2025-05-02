@@ -1,0 +1,12 @@
+{
+    "id": "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}",
+    "name": "HomeassistantGateway",
+    "type": 2,
+    "vendor": "Stephan Sprick",
+    "aliases": ["HomeAssistant Gateway (IO)"],
+    "parentRequirements": ["{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}"],
+    "childRequirements": ["{C24CDA30-82EE-41D6-9D2D-7435C24B6EB6}"],
+    "implemented": ["{7A1272A4-CBDB-46EF-BFC6-DCF4A53D2FC7}", "{C8792760-65CF-4C53-B5C7-A30FCC84FEFE}"],
+    "prefix": "HAG",
+    "url": "https://github.com/da8ter/HAconnect.git"
+} 
