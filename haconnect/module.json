@@ -4,9 +4,9 @@
     "type": 3,
     "vendor": "Stephan Sprick",
     "aliases": ["HomeAssistant Gateway"],
-    "parentRequirements": ["{C6D2AEB3-6E1F-4B2E-8E69-3A1A00246850}"],
+    "parentRequirements": ["{D5C0D7CE-6A00-BDFC-2880-1ED4C08055E0}"],
     "childRequirements": ["{C24CDA30-82EE-41D6-9D2D-7435C24B6EB6}"],
-    "implemented": ["{C6D2AEB3-6E1F-4B2E-8E69-3A1A00246850}", "{7A1272A4-CBDB-46EF-BFC6-DCF4A53D2FC7}"],
+    "implemented": ["{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}", "{7A1272A4-CBDB-46EF-BFC6-DCF4A53D2FC7}"],
     "prefix": "HA",
     "url": "https://github.com/da8ter/HAconnect.git"
 } 

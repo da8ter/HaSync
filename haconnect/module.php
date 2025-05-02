@@ -22,7 +22,7 @@ class HomeassistantGateway extends IPSModule
         $this->RegisterVariableInteger('LastUpdate', 'Letzte Aktualisierung', '~UnixTimestamp', 0);
         
         //Connect to available MQTT broker
-        $this->ConnectParent('{C6D2AEB3-6E1F-4B2E-8E69-3A1A00246850}');
+        $this->ConnectParent('{D5C0D7CE-6A00-BDFC-2880-1ED4C08055E0}');
         
         //Registriere Timer für automatische Aktualisierung
         $this->RegisterTimer('UpdateDevices', 0, 'HA_UpdateDevices($_IPS[\'TARGET\']);');
