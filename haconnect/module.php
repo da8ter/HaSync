@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-class Homeassistant extends IPSModule
+class HomeassistantGateway extends IPSModule
 {
     public function Create()
     {
