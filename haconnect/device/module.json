@@ -1,0 +1,12 @@
+{
+    "id": "{B6E23D9F-27AB-444C-B1F8-184FA69C9C58}",
+    "name": "HomeassistantDevice",
+    "type": 3,
+    "vendor": "Stephan Sprick",
+    "aliases": ["HomeAssistant Gerät"],
+    "parentRequirements": ["{C24CDA30-82EE-41D6-9D2D-7435C24B6EB6}"],
+    "childRequirements": [],
+    "implemented": ["{79DFEF75-988A-5F97-C007-F3B77EAAF075}"],
+    "prefix": "HA",
+    "url": "https://github.com/da8ter/HAconnect.git"
+} 

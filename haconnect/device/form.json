@@ -1,0 +1,44 @@
+{
+    "elements": [
+        {
+            "type": "ValidationTextBox",
+            "name": "DeviceID",
+            "caption": "Geräte-ID",
+            "width": "300px"
+        },
+        {
+            "type": "CheckBox",
+            "name": "AutoUpdate",
+            "caption": "Automatische Aktualisierung (alle 5 Minuten)"
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "caption": "Status aktualisieren",
+            "onClick": "HA_RequestUpdate($id);"
+        }
+    ],
+    "status": [
+        {
+            "code": 102,
+            "icon": "active",
+            "caption": "Gerät ist aktiv"
+        },
+        {
+            "code": 201,
+            "icon": "error",
+            "caption": "Keine Geräte-ID konfiguriert"
+        },
+        {
+            "code": 202,
+            "icon": "error",
+            "caption": "Verbindung zum Gateway getrennt"
+        },
+        {
+            "code": 203,
+            "icon": "error",
+            "caption": "Gerät nicht erreichbar"
+        }
+    ]
+} 
