@@ -1,0 +1,12 @@
+{
+    "id": "{A2B3C4D5-E6F7-8901-ABCD-EF2345678901}",
+    "name": "HomeassistantConfigurator",
+    "type": 4,
+    "vendor": "Stephan Sprick",
+    "aliases": ["HomeAssistant Konfigurator"],
+    "parentRequirements": ["{7A1272A4-CBDB-46EF-BFC6-DCF4A53D2FC7}"],
+    "childRequirements": [],
+    "implemented": ["{C24CDA30-82EE-41D6-9D2D-7435C24B6EB6}"],
+    "prefix": "HAC",
+    "url": "https://github.com/da8ter/HAconnect.git"
+} 

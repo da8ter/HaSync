@@ -1,0 +1,111 @@
+{
+    "elements": [
+        {
+            "type": "ValidationTextBox",
+            "name": "MQTTTopic",
+            "caption": "MQTT Topic"
+        },
+        {
+            "type": "ValidationTextBox",
+            "name": "MQTTBroker",
+            "caption": "MQTT Broker Adresse"
+        },
+        {
+            "type": "SelectInstance",
+            "name": "MQTTBrokerInstanceID",
+            "caption": "MQTT Broker Instanz",
+            "filter": "{C6D2AEB3-6E1F-4B2E-8E69-3A1A00246850}"
+        },
+        {
+            "type": "NumberSpinner",
+            "name": "UpdateInterval",
+            "caption": "Update-Intervall (Sekunden)",
+            "minimum": 10,
+            "maximum": 3600
+        },
+        {
+            "type": "CheckBox",
+            "name": "AutoCreateDevices",
+            "caption": "Geräte automatisch erstellen"
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "caption": "Geräteliste aktualisieren",
+            "onClick": "HA_RefreshDeviceList($id);"
+        },
+        {
+            "type": "Button",
+            "caption": "Home Assistant Geräte erkennen",
+            "onClick": "HA_DiscoverDevices($id);"
+        },
+        {
+            "type": "Configurator",
+            "name": "DeviceConfigurator",
+            "caption": "Home Assistant Geräte",
+            "rowCount": 15,
+            "add": false,
+            "delete": false,
+            "sort": {
+                "column": "name",
+                "direction": "ascending"
+            },
+            "columns": [
+                {
+                    "caption": "ID",
+                    "name": "id",
+                    "width": "150px"
+                },
+                {
+                    "caption": "Name",
+                    "name": "name",
+                    "width": "250px"
+                },
+                {
+                    "caption": "Typ",
+                    "name": "component",
+                    "width": "120px"
+                },
+                {
+                    "caption": "Hersteller",
+                    "name": "manufacturer",
+                    "width": "180px"
+                },
+                {
+                    "caption": "Modell",
+                    "name": "model",
+                    "width": "180px"
+                },
+                {
+                    "caption": "Bereich",
+                    "name": "area",
+                    "width": "120px"
+                }
+            ],
+            "values": []
+        }
+    ],
+    "status": [
+        {
+            "code": 101,
+            "icon": "active",
+            "caption": "HomeassistantConnect wird erstellt"
+        },
+        {
+            "code": 102,
+            "icon": "active",
+            "caption": "HomeassistantConnect ist aktiv"
+        },
+        {
+            "code": 104,
+            "icon": "inactive",
+            "caption": "HomeassistantConnect ist inaktiv"
+        },
+        {
+            "code": 201,
+            "icon": "error",
+            "caption": "MQTT Broker nicht konfiguriert"
+        }
+    ]
+} 
