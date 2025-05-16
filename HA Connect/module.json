@@ -1,0 +1,12 @@
+{
+    "id": "{61705CC0-0D04-791F-19D5-E7646BAC18F4}",
+    "name": "HA Connect",
+    "type": 3,
+    "vendor": "",
+    "aliases": [],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "HACO",
+    "url": "https://github.com/da8ter/HAconnect.git"
+}
