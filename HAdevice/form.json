@@ -1,0 +1,20 @@
+{
+    "elements": [
+        {
+            "type": "ValidationTextBox",
+            "name": "entity_id",
+            "caption": "Entity ID"
+        },
+        {
+            "type": "SelectInstance",
+            "name": "parent_id",
+            "caption": "Home Assistant Verbindung (automatisch)",
+            "moduleID": "{32D99DCD-A530-4907-3FB0-44D7D472771D}",
+            "width": "auto",
+            "enabled": false
+        }
+    ],
+    "actions": [
+    ],
+    "status": []
+}
