@@ -1,4 +1,4 @@
-# HAmqtt
+# HaBridge
 Home Assistant MQTT Integration für Echtzeit-Updates
 
 ### Inhaltsverzeichnis
@@ -16,7 +16,7 @@ Home Assistant MQTT Integration für Echtzeit-Updates
 * Echtzeit-Updates von Home Assistant über MQTT
 * Automatische Geräteerkennung über MQTT Discovery
 * Bidirektionale Kommunikation mit Home Assistant
-* Integration mit bestehenden HAconnect/HAdevice Instanzen
+* Integration mit bestehenden HaConfigurator/HaDevice Instanzen
 * Unterstützung für alle Home Assistant Entity-Typen
 
 ### 2. Voraussetzungen
@@ -24,16 +24,16 @@ Home Assistant MQTT Integration für Echtzeit-Updates
 - IP-Symcon ab Version 7.1
 - MQTT Server/Broker (z.B. Mosquitto)
 - Home Assistant mit MQTT Integration
-- HAconnect Modul (für Fallback-Funktionalität)
+- HaConfigurator Modul (für Fallback-Funktionalität)
 
 ### 3. Software-Installation
 
-* Über den Module Store das 'HAmqtt'-Modul installieren.
+* Über den Module Store das 'HaBridge'-Modul installieren.
 * Alternativ über das Module Control folgende URL hinzufügen
 
 ### 4. Einrichten der Instanzen in IP-Symcon
 
-Unter 'Instanz hinzufügen' kann das 'HAmqtt'-Modul mithilfe des Schnellfilters gefunden werden.  
+Unter 'Instanz hinzufügen' kann das 'HaBridge'-Modul mithilfe des Schnellfilters gefunden werden.  
 - Weitere Informationen zum Hinzufügen von Instanzen in der [Dokumentation der Instanzen](https://www.symcon.de/service/dokumentation/konzepte/instanzen/#Instanz_hinzufügen)
 
 __Konfigurationsseite__:
@@ -43,7 +43,7 @@ Name                    | Beschreibung
 Discovery Prefix        | MQTT Topic Prefix für Home Assistant Discovery (Standard: homeassistant)
 Auto-Discovery         | Automatische Erkennung neuer Geräte über MQTT
 Echtzeit State Updates  | Sofortige Aktualisierung bei Änderungen in Home Assistant
-HAconnect Instanz      | Verknüpfung mit bestehender HAconnect Instanz für Fallback
+HaConfigurator Instanz      | Verknüpfung mit bestehender HaConfigurator Instanz für Fallback
 
 ### 5. Home Assistant Konfiguration
 
@@ -81,32 +81,32 @@ Es werden keine zusätzlichen Profile angelegt.
 
 ### 7. PHP-Befehlsreferenz
 
-#### HAmqtt_EnableMQTTForExistingDevices(integer $InstanzID)
-Aktiviert MQTT Updates für alle bestehenden HAdevice Instanzen.
+#### HaBridge_EnableMQTTForExistingDevices(integer $InstanzID)
+Aktiviert MQTT Updates für alle bestehenden HaDevice Instanzen.
 
 **Parameter:**
-- $InstanzID: Instanz-ID des HAmqtt Moduls
+- $InstanzID: Instanz-ID des HaBridge Moduls
 
 **Rückgabe:**
 - boolean: true bei Erfolg, false bei Fehler
 
 **Beispiel:**
 ```php
-$result = HAmqtt_EnableMQTTForExistingDevices(12345);
+$result = HaBridge_EnableMQTTForExistingDevices(12345);
 if ($result) {
     echo "MQTT erfolgreich für bestehende Geräte aktiviert";
 }
 ```
 
-#### HAmqtt_RunDiscovery(integer $InstanzID)
+#### HaBridge_RunDiscovery(integer $InstanzID)
 Führt eine manuelle Discovery-Suche nach neuen Home Assistant Geräten aus.
 
 **Parameter:**
-- $InstanzID: Instanz-ID des HAmqtt Moduls
+- $InstanzID: Instanz-ID des HaBridge Moduls
 
 **Beispiel:**
 ```php
-HAmqtt_RunDiscovery(12345);
+HaBridge_RunDiscovery(12345);
 ```
 
 ### Fehlerbehebung
@@ -117,8 +117,8 @@ HAmqtt_RunDiscovery(12345);
 - Kontrollieren Sie die Discovery Prefix Einstellung
 
 **Problem:** Geräte werden nicht automatisch erstellt
-- Aktivieren Sie Auto-Discovery in der HAmqtt Konfiguration
-- Stellen Sie sicher, dass eine HAconnect Instanz konfiguriert ist
+- Aktivieren Sie Auto-Discovery in der HaBridge Konfiguration
+- Stellen Sie sicher, dass eine HaConfigurator Instanz konfiguriert ist
 - Prüfen Sie die Home Assistant MQTT Discovery Konfiguration
 
 **Problem:** State Updates funktionieren nicht

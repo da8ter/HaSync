@@ -3,13 +3,13 @@
 declare(strict_types=1);
 
 /**
- * HaBridge - Home Assistant REST API Configurator für IP-Symcon
+ * HaConfigurator - Home Assistant REST API Configurator für IP-Symcon
  * Automatische Geräteerkennung Aktualisierung
  * 
  * @version 2.0.0
  * @author Windsurf.io
  */
-class HaBridge extends IPSModule
+class HaConfigurator extends IPSModule
 {
     public function Create()
     {
@@ -74,7 +74,7 @@ class HaBridge extends IPSModule
     }
     
     /**
-     * Poll states from Home Assistant and update HAdevice instances
+     * Poll states from Home Assistant and update HaDevice instances
      */
     public function PollStates()
     {
@@ -82,13 +82,13 @@ class HaBridge extends IPSModule
             return;
         }
         
-        $haDeviceModuleID = $this->GetHAdeviceModuleID();
-        if (empty($haDeviceModuleID)) {
-            $this->LogMessage('Could not determine HAdevice module ID', KL_ERROR);
+        $HaDeviceModuleID = $this->GetHaDeviceModuleID();
+        if (empty($HaDeviceModuleID)) {
+            $this->LogMessage('Could not determine HaDevice module ID', KL_ERROR);
             return;
         }
 
-        $instanceIDs = IPS_GetInstanceListByModuleID($haDeviceModuleID);
+        $instanceIDs = IPS_GetInstanceListByModuleID($HaDeviceModuleID);
         if (empty($instanceIDs)) {
             return;
         }
@@ -215,9 +215,9 @@ class HaBridge extends IPSModule
     }
 
     /**
-     * Get HAdevice module ID
+     * Get HaDevice module ID
      */
-    protected function GetHAdeviceModuleID(): string
+    protected function GetHaDeviceModuleID(): string
     {
         return '{8DF4E3B9-1FF2-B0B3-649E-117AC0B355FD}';
     }
@@ -328,13 +328,13 @@ class HaBridge extends IPSModule
             return json_encode($form);
         }
         
-        // Get HAdevice module ID for instance creation
-        $haDeviceModuleID = $this->GetHAdeviceModuleID();
+        // Get HaDevice module ID for instance creation
+        $HaDeviceModuleID = $this->GetHaDeviceModuleID();
         
         // Get existing instances
         $existingInstances = [];
-        if (!empty($haDeviceModuleID)) {
-            $instanceIDs = IPS_GetInstanceListByModuleID($haDeviceModuleID);
+        if (!empty($HaDeviceModuleID)) {
+            $instanceIDs = IPS_GetInstanceListByModuleID($HaDeviceModuleID);
             foreach($instanceIDs as $id) {
                 if(IPS_InstanceExists($id)) {
                     try {
@@ -363,7 +363,7 @@ class HaBridge extends IPSModule
                     'state' => $device['state'] ?? $this->Translate('unknown'),
                     'instanceID' => $instanceID,
                     'create' => [
-                        'moduleID' => $haDeviceModuleID,
+                        'moduleID' => $HaDeviceModuleID,
                         'configuration' => [
                             'entity_id' => $entityId,
                             'parent_id' => $this->InstanceID

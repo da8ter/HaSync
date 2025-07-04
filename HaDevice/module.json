@@ -1,6 +1,6 @@
 {
     "id": "{8DF4E3B9-1FF2-B0B3-649E-117AC0B355FD}",
-    "name": "HAdevice",
+    "name": "HaDevice",
     "type": 3,
     "vendor": "",
     "aliases": [],
@@ -11,5 +11,5 @@
     "childRequirements": [],
     "implemented": ["{C78CF679-C945-4AEE-BE58-A5616D85A6B8}"],
     "prefix": "HADE",
-    "url": ""
+    "url": "https://github.com/da8ter/HaSync.git"
 }

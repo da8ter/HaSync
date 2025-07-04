@@ -33,7 +33,7 @@
         },
         {
             "type": "Label",
-            "caption": "Für MQTT Echtzeit-Updates: Separates HAmqtt Modul verwenden"
+            "caption": "Für MQTT Echtzeit-Updates: Separates HaBridge Modul verwenden"
         }
     ],
     "actions": [

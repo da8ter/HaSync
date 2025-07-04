@@ -3,13 +3,13 @@
 declare(strict_types=1);
 
 /**
- * HAmqtt - Home Assistant MQTT Integration für IP-Symcon
- * Automatische MQTT-basierte Echtzeitaktualisierung von HAdevice Instanzen
+ * HaBridge - Home Assistant MQTT Integration für IP-Symcon
+ * Automatische MQTT-basierte Echtzeitaktualisierung von HaDevice Instanzen
  * 
  * @version 2.0.0
  * @author Windsurf.io
  */
-class HAmqtt extends IPSModule
+class HaBridge extends IPSModule
 {
     public function Create()
     {
@@ -19,7 +19,7 @@ class HAmqtt extends IPSModule
         $this->ConnectParent('{C6D2AEB3-6E1F-4B2E-8E69-3A1A00246850}');
         
         // Properties
-        $this->RegisterPropertyString('ClientID', 'HAmqtt_' . $this->InstanceID);
+        $this->RegisterPropertyString('ClientID', 'HaBridge_' . $this->InstanceID);
         $this->RegisterPropertyString('ha_discovery_prefix', 'homeassistant');
         $this->RegisterPropertyBoolean('enable_discovery', true);
         $this->RegisterPropertyBoolean('enable_state_updates', true);
@@ -105,7 +105,7 @@ class HAmqtt extends IPSModule
         $this->SubscribeTopic($discoveryPrefix . '/+/+/+/config');
         
         // Subscribe to state topics for existing devices
-        $devices = $this->GetHADeviceInstances();
+        $devices = $this->GetHaDeviceInstances();
         foreach ($devices as $entityId => $instanceId) {
             $stateTopic = $discoveryPrefix . '/' . str_replace('.', '/', $entityId) . '/state';
             $this->SubscribeTopic($stateTopic);
@@ -189,8 +189,8 @@ class HAmqtt extends IPSModule
             return;
         }
         
-        // Check if HAdevice instance exists for this entity
-        $instanceId = $this->FindHAdeviceByEntityId($entityId);
+        // Check if HaDevice instance exists for this entity
+        $instanceId = $this->FindHaDeviceByEntityId($entityId);
         if ($instanceId) {
             // Update entity mapping
             $mapping = json_decode($this->ReadAttributeString('EntityMapping'), true);
@@ -213,7 +213,7 @@ class HAmqtt extends IPSModule
             return;
         }
         
-        $instanceId = $this->FindHAdeviceByEntityId($entityId);
+        $instanceId = $this->FindHaDeviceByEntityId($entityId);
         if (!$instanceId) {
             return;
         }
@@ -244,9 +244,9 @@ class HAmqtt extends IPSModule
     }
     
     /**
-     * Find HAdevice instance by entity ID
+     * Find HaDevice instance by entity ID
      */
-    protected function FindHAdeviceByEntityId($entityId): ?int
+    protected function FindHaDeviceByEntityId($entityId): ?int
     {
         // Check entity mapping first
         $mapping = json_decode($this->ReadAttributeString('EntityMapping'), true);
@@ -257,7 +257,7 @@ class HAmqtt extends IPSModule
             }
         }
         
-        // Search all HAdevice instances
+        // Search all HaDevice instances
         $instanceIds = IPS_GetInstanceListByModuleID('{8DF4E3B9-1FF2-B0B3-649E-117AC0B355FD}');
         foreach ($instanceIds as $instanceId) {
             if (IPS_InstanceExists($instanceId)) {
@@ -279,7 +279,7 @@ class HAmqtt extends IPSModule
     }
     
     /**
-     * Forward state update to HAdevice instance
+     * Forward state update to HaDevice instance
      */
     protected function ForwardStateUpdate($instanceId, $payload)
     {
@@ -297,7 +297,7 @@ class HAmqtt extends IPSModule
             $entityId = IPS_GetProperty($instanceId, 'entity_id');
             $data['entity_id'] = $entityId;
             
-            // Forward to HAdevice via RequestAction
+            // Forward to HaDevice via RequestAction
             $result = @IPS_RequestAction($instanceId, 'ProcessMQTTStateUpdate', $data);
             
             if ($result) {
@@ -373,9 +373,9 @@ class HAmqtt extends IPSModule
     }
     
     /**
-     * Get all HAdevice instances
+     * Get all HaDevice instances
      */
-    protected function GetHADeviceInstances(): array
+    protected function GetHaDeviceInstances(): array
     {
         $devices = [];
         $instanceIds = IPS_GetInstanceListByModuleID('{8DF4E3B9-1FF2-B0B3-649E-117AC0B355FD}');
@@ -443,7 +443,7 @@ class HAmqtt extends IPSModule
     }
     
     /**
-     * Enable MQTT updates for all existing HAdevice instances
+     * Enable MQTT updates for all existing HaDevice instances
      */
     public function EnableMQTTForExistingDevices()
     {

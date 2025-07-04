@@ -19,16 +19,15 @@ Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon m
 
 ## 📦 Module
 
-### HAconnect - REST API Configurator
+### HaConfigurator - REST API Configurator
 **Typ:** Configurator (Typ 4)  
 **GUID:** `{32D99DCD-A530-4907-3FB0-44D7D472771D}`
 
 - Verbindung zu Home Assistant über REST API
 - Automatische Geräteerkennung und Configurator
-- Polling-basierte Aktualisierung (Fallback)
 - Verwaltung der Home Assistant Verbindungsparameter
 
-### HAdevice - Entitäts-Repräsentation
+### HaDevice - Entitäts-Repräsentation
 **Typ:** Device (Typ 3)  
 **GUID:** `{8DF4E3B9-1FF2-B0B3-649E-117AC0B355FD}`
 
@@ -36,31 +35,23 @@ Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon m
 - Automatische Variablenerstellung mit intelligenter Typerkennung
 - Bidirektionale Kommunikation (Lesen/Schreiben)
 - Unterstützt alle gängigen HA-Domains (light, switch, sensor, etc.)
-- Metadaten-Filterung (keine Variablen für icon, friendly_name, editable)
 
-### HAmqtt - MQTT Echtzeit-Integration
+### HaBridge - MQTT Echtzeit-Integration
 **Typ:** Device (Typ 3)  
 **GUID:** `{7A107D38-75A8-41C8-B57D-2D8E8FC1CF6A}`
 
 - Echtzeitaktualisierung über MQTT
-- Automatische Erkennung bestehender HAdevice Instanzen
-- Discovery-Nachrichten verarbeitung
-- Vollständig eigenständig (kein HAconnect Parent erforderlich)
+- Automatische Erkennung bestehender HaDevice Instanzen
+
 
 ## 🚀 Installation
 
 ### 1. Über IP-Symcon Store
-
-1. IP-Symcon Management Konsole öffnen
-2. **Kern Instanzen** → **Module Control**
-3. **Store** → Nach "HAsync" suchen
-4. **Installieren** klicken
+-
 
 ### 2. Manuelle Installation
 
-1. Repository herunterladen oder klonen
-2. Ordner nach `/var/lib/symcon/modules/` kopieren
-3. Management Konsole → **Module Control** → **Module laden**
+1. Modulecontrol öffnen und folgende URL hinzufügen: https://github.com/da8ter/HaSync.git
 
 ## ⚙️ Konfiguration
 
@@ -70,18 +61,18 @@ Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon m
 2. **Create Token** → Name vergeben (z.B. "IP-Symcon")
 3. Token kopieren und sicher aufbewahren
 
-### Schritt 2: HAconnect konfigurieren
+### Schritt 2: HaConfigurator konfigurieren
 
-1. **Instanz hinzufügen** → **HAconnect**
+1. **Instanz hinzufügen** → **HaConfigurator**
 2. **Home Assistant URL** eingeben (z.B. `http://192.168.1.100:8123`)
 3. **Long-lived Access Token** einfügen
 4. **Übernehmen** → Configurator öffnet sich automatisch
 5. Gewünschte Geräte auswählen und **Erstellen** klicken
 
-### Schritt 3: MQTT einrichten (Optional für Echtzeitaktualisierung)
+### Schritt 3: MQTT einrichten 
 
 1. **MQTT Server** Modul in IP-Symcon installieren und konfigurieren
-2. **Instanz hinzufügen** → **HAmqtt**
+2. **Instanz hinzufügen** → **HaBridge**
 3. **Parent** → MQTT Server auswählen
 4. **Discovery Prefix** auf `homeassistant` lassen (Standard)
 5. **Übernehmen** → MQTT Integration ist aktiv
@@ -103,7 +94,7 @@ Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon m
 
 ## 📊 Intelligente Typerkennung
 
-Das HAdevice Modul erkennt automatisch den korrekten Variablentyp:
+Das HaDevice Modul erkennt automatisch den korrekten Variablentyp:
 
 - **Temperatur-Attribute** (`temperature`, `current_temperature`) → Float mit ~Temperature
 - **Feuchtigkeit** (`humidity`) → Integer mit ~Humidity  
@@ -115,14 +106,14 @@ Das HAdevice Modul erkennt automatisch den korrekten Variablentyp:
 
 ## 🔄 Funktionsweise
 
-### REST API Polling (HAconnect)
+### REST API Polling (HaConfigurator)
 - Regelmäßige Abfrage aller Entitätszustände
 - Standard: 30 Sekunden Intervall
 - Zuverlässig, aber nicht Echtzeit
 
-### MQTT Echtzeit-Updates (HAmqtt)
+### MQTT Echtzeit-Updates (HaBridge)
 - Sofortige Aktualisierung bei Änderungen
-- Automatische Weiterleitung an HAdevice Instanzen
+- Automatische Weiterleitung an HaDevice Instanzen
 - Unterstützt Discovery-Nachrichten
 
 ### Bidirektionale Steuerung
@@ -153,7 +144,7 @@ Das HAdevice Modul erkennt automatisch den korrekten Variablentyp:
 
 ### Variablen werden nicht erstellt
 - Entität in Home Assistant verfügbar?
-- HAdevice Status-Variable vorhanden?
+- HaDevice Status-Variable vorhanden?
 - Logs in IP-Symcon prüfen
 
 ## 🔗 Links
