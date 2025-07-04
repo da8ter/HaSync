@@ -1,0 +1,23 @@
+{
+    "id": "{156F2125-5F15-DFC7-DB79-0F921B9DE383}",
+    "name": "HAsync",
+    "author": "Windsurf.io",
+    "url": "https://github.com/windsurf-io/HAsync",
+    "compatibility": {
+        "version": "7.1"
+    },
+    "modules": {
+        "HAconnect": {
+            "file": "HAconnect/module.php"
+        },
+        "HAdevice": {
+            "file": "HAdevice/module.php"
+        },
+        "HAmqtt": {
+            "file": "HAmqtt/module.php"
+        }
+    },
+    "version": "2.1.0",
+    "build": 0,
+    "date": 0
+}

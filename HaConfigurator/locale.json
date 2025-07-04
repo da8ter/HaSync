@@ -1,0 +1,26 @@
+{
+    "translations": {
+        "de": {
+            "Home Assistant URL": "Home Assistant URL",
+            "Home Assistant Token": "Home Assistant Token",
+            "Geräte": "Geräte",
+            "Entity ID": "Entity ID",
+            "Name": "Name",
+            "Status": "Status",
+            "MQTT Integration (Echtzeit-Updates)": "MQTT Integration (Echtzeit-Updates)",
+            "MQTT Integration aktivieren": "MQTT Integration aktivieren",
+            "HAmqtt Instanz": "HAmqtt Instanz"
+        },
+        "en": {
+            "Home Assistant URL": "Home Assistant URL",
+            "Home Assistant Token": "Home Assistant Token",
+            "Geräte": "Devices",
+            "Entity ID": "Entity ID",
+            "Name": "Name",
+            "Status": "State",
+            "MQTT Integration (Echtzeit-Updates)": "MQTT Integration (Real-time Updates)",
+            "MQTT Integration aktivieren": "Enable MQTT Integration",
+            "HAmqtt Instanz": "HAmqtt Instance"
+        }
+    }
+}

@@ -1,0 +1,12 @@
+{
+    "id": "{32D99DCD-A530-4907-3FB0-44D7D472771D}",
+    "name": "HaConfigurator",
+    "type": 4,
+    "vendor": "Stephan Sprick",
+    "aliases": [],
+    "parentRequirements": [],
+    "childRequirements": ["{8DF4E3B9-1FF2-B0B3-649E-117AC0B355FD}"],
+    "implemented": [],
+    "prefix": "HACO",
+    "url": ""
+}

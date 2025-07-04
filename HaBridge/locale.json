@@ -1,0 +1,32 @@
+{
+    "translations": {
+        "de": {
+            "Home Assistant MQTT Integration": "Home Assistant MQTT Integration",
+            "Discovery Prefix": "Discovery Prefix",
+            "Auto-Discovery aktivieren": "Auto-Discovery aktivieren",
+            "Echtzeit State Updates": "Echtzeit State Updates",
+            "HAconnect Instanz": "HAconnect Instanz",
+            "MQTT für bestehende Geräte aktivieren": "MQTT für bestehende Geräte aktivieren",
+            "Discovery ausführen": "Discovery ausführen",
+            "Instanz wird erstellt": "Instanz wird erstellt",
+            "MQTT Integration aktiv": "MQTT Integration aktiv",
+            "Kein MQTT Server vorhanden": "Kein MQTT Server vorhanden",
+            "MQTT Server nicht erreichbar": "MQTT Server nicht erreichbar",
+            "Konfigurationsfehler": "Konfigurationsfehler"
+        },
+        "en": {
+            "Home Assistant MQTT Integration": "Home Assistant MQTT Integration",
+            "Discovery Prefix": "Discovery Prefix",
+            "Auto-Discovery aktivieren": "Enable Auto-Discovery",
+            "Echtzeit State Updates": "Real-time State Updates",
+            "HAconnect Instanz": "HAconnect Instance",
+            "MQTT für bestehende Geräte aktivieren": "Enable MQTT for existing devices",
+            "Discovery ausführen": "Run Discovery",
+            "Instanz wird erstellt": "Instance is being created",
+            "MQTT Integration aktiv": "MQTT Integration active",
+            "Kein MQTT Server vorhanden": "No MQTT Server available",
+            "MQTT Server nicht erreichbar": "MQTT Server not reachable",
+            "Konfigurationsfehler": "Configuration error"
+        }
+    }
+}

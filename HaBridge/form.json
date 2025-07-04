@@ -1,0 +1,66 @@
+{
+    "elements": [
+        {
+            "type": "Label",
+            "caption": "Home Assistant MQTT Integration"
+        },
+        {
+            "type": "ValidationTextBox",
+            "name": "ha_discovery_prefix",
+            "caption": "Discovery Prefix"
+        },
+        {
+            "type": "CheckBox",
+            "name": "enable_discovery",
+            "caption": "Auto-Discovery aktivieren"
+        },
+        {
+            "type": "CheckBox",
+            "name": "enable_state_updates",
+            "caption": "Echtzeit State Updates"
+        },
+        {
+            "type": "Label",
+            "caption": "MQTT Integration arbeitet direkt mit HAdevice Instanzen"
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "caption": "MQTT für bestehende Geräte aktivieren",
+            "onClick": "HAMQ_EnableMQTTForExistingDevices($id);"
+        },
+        {
+            "type": "Button",
+            "caption": "Discovery ausführen",
+            "onClick": "HAMQ_RunDiscovery($id);"
+        }
+    ],
+    "status": [
+        {
+            "code": 101,
+            "icon": "inactive",
+            "caption": "Instanz wird erstellt"
+        },
+        {
+            "code": 102,
+            "icon": "active",
+            "caption": "MQTT Integration aktiv"
+        },
+        {
+            "code": 104,
+            "icon": "inactive",
+            "caption": "Kein MQTT Server vorhanden"
+        },
+        {
+            "code": 200,
+            "icon": "error",
+            "caption": "MQTT Server nicht erreichbar"
+        },
+        {
+            "code": 201,
+            "icon": "error",
+            "caption": "Konfigurationsfehler"
+        }
+    ]
+}
