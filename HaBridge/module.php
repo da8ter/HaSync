@@ -20,16 +20,12 @@ class HaBridge extends IPSModule
         
         // Properties
         $this->RegisterPropertyString('ClientID', 'HaBridge_' . $this->InstanceID);
-        $this->RegisterPropertyString('ha_discovery_prefix', 'homeassistant');
-        $this->RegisterPropertyBoolean('enable_discovery', true);
         $this->RegisterPropertyBoolean('enable_state_updates', true);
         
         // Attributes
         $this->RegisterAttributeString('SubscribedTopics', json_encode([]));
         $this->RegisterAttributeString('EntityMapping', '{}');
         
-        // Timer
-        $this->RegisterTimer('DiscoveryTimer', 0, 'HAMQ_RunDiscovery($_IPS[\'TARGET\']);');
     }
 
     public function ApplyChanges()
@@ -44,12 +40,7 @@ class HaBridge extends IPSModule
         try {
             $this->SubscribeToTopics();
             
-            if ($this->ReadPropertyBoolean('enable_discovery')) {
-                $this->SetTimerInterval('DiscoveryTimer', 60000);
-            } else {
-                $this->SetTimerInterval('DiscoveryTimer', 0);
-            }
-            
+        
             $this->SetStatus(102);
             
         } catch (Exception $e) {
@@ -396,18 +387,7 @@ class HaBridge extends IPSModule
         return $devices;
     }
     
-    /**
-     * Run discovery (called by timer)
-     */
-    public function RunDiscovery()
-    {
-        if (!$this->ReadPropertyBoolean('enable_discovery')) {
-            return;
-        }
-        
-        $discoveryPrefix = $this->ReadPropertyString('ha_discovery_prefix');
-        $this->PublishMQTT($discoveryPrefix . '/status', 'online');
-    }
+
     
     /**
      * Publish MQTT message via MQTT Server
