@@ -303,7 +303,7 @@ class HaBridge extends IPSModule
             if ($result) {
                 $this->SendDebug('ForwardStateUpdate', 'Successfully forwarded to instance ' . $instanceId, 0);
             } else {
-                $this->SendDebug('ForwardStateUpdate', 'Failed to forward to instance ' . $instanceId, 0);
+              //  $this->SendDebug('ForwardStateUpdate', 'Failed to forward to instance ' . $instanceId, 0);
                 // Fallback: direct variable update
                 $this->UpdateVariableDirect($instanceId, $data);
             }
