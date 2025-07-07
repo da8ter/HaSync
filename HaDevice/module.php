@@ -403,26 +403,16 @@ class HaDevice extends IPSModule
         return is_array($devices) ? $devices : null;
     }
     
-/**
+    /**
  * Process MQTT state update
  *
- * Erwartet einen JSON-String von HaBridge.
- * - "entity_id"   (string)  Pflicht
- * - "state"       (mixed)   optional
- * - "attributes"  (array)   optional
+ * Akzeptiert nun auch reine Attribut-Payloads ohne "state"-Feld.
+ *  • entity_id   (string)   Pflicht
+ *  • state       (mixed)    optional
+ *  • attributes  (array)    optional
  *
- * Die Routine akzeptiert Nachrichten, die
- *  • sowohl "state" als auch "attributes" enthalten,
- *  • nur "state" oder nur "attributes" enthalten.
- *
- * Sie aktualisiert
- *  • die Status-Variable (falls "state" vorhanden) und
- *  • bereits existierende Attribut-Variablen (falls im Objektbaum vorhanden).
- *
- * Es werden **keine neuen Variablen** angelegt und keine Präsentationen geändert.
- *
- * @param string $data JSON-kodierte Payload
- * @return bool  true = verarbeitet, false = ignoriert/fehlerhaft
+ * Falls weder "state" noch "attributes" vorhanden sind, wird das gesamte
+ * JSON – abzüglich entity_id – als Attribute-Map interpretiert.
  */
 public function ProcessMQTTStateUpdate(string $data): bool
 {
@@ -431,14 +421,26 @@ public function ProcessMQTTStateUpdate(string $data): bool
     if (!is_array($payload) || !isset($payload['entity_id'])) {
         return false;                                // entity_id bleibt Pflicht
     }
-    // mind. "state" ODER "attributes" muss vorhanden sein
+
+    // Wenn weder 'state' noch 'attributes' existieren,
+    // aber weitere Schlüssel → alles als Attribute auffassen
     if (!array_key_exists('state', $payload) && !array_key_exists('attributes', $payload)) {
-        return false;
+        if (count($payload) > 1) {                   // außer entity_id gibt es noch Daten
+            $attributesRaw = $payload;
+            unset($attributesRaw['entity_id']);
+            $payload = [
+                'entity_id'  => $payload['entity_id'],
+                'attributes' => $attributesRaw
+            ];
+        } else {
+            return false;                            // wirklich leer: ignorieren
+        }
     }
 
+    // Nachricht gehört zu dieser Instanz?
     $entityId = $this->ReadPropertyString('entity_id');
     if ($entityId !== $payload['entity_id']) {
-        return false;                                // Nachricht gehört zu einer anderen Instanz
+        return false;
     }
 
     /* ---------- 1) Status-Variable (nur wenn 'state' gesetzt) ---------- */
@@ -451,7 +453,8 @@ public function ProcessMQTTStateUpdate(string $data): bool
             case VARIABLETYPE_BOOLEAN:
                 $value = is_bool($payload['state'])
                     ? $payload['state']
-                    : in_array(strtolower((string)$payload['state']), ['on','true','1','yes','home']);
+                    : in_array(strtolower((string)$payload['state']),
+                              ['on', 'true', '1', 'yes', 'home']);
                 break;
             case VARIABLETYPE_INTEGER:
                 $value = (int)$payload['state'];
@@ -462,14 +465,15 @@ public function ProcessMQTTStateUpdate(string $data): bool
             default:
                 $value = (string)$payload['state'];
         }
+
         $this->SetValue('Status', $value);
     }
 
-    /* ---------- 2) Attribut-Variablen ---------- */
+    /* ---------- 2) Attribut-Variablen aktualisieren (nur vorhandene) ---------- */
     if (isset($payload['attributes']) && is_array($payload['attributes'])) {
         foreach ($payload['attributes'] as $key => $val) {
 
-            // Metadaten ignorieren – sollen unsichtbar bleiben
+            // Meta-Attribute überspringen
             if (in_array($key, [
                 'icon','initial','max','min','mode','step','unit_of_measurement',
                 'friendly_name','editable'
@@ -489,7 +493,8 @@ public function ProcessMQTTStateUpdate(string $data): bool
                 case VARIABLETYPE_BOOLEAN:
                     $bool = is_bool($val)
                         ? $val
-                        : in_array(strtolower((string)$val), ['true','on','1','yes','home']);
+                        : in_array(strtolower((string)$val),
+                                  ['true', 'on', '1', 'yes', 'home']);
                     $this->SetValue($ident, $bool);
                     break;
 
@@ -502,14 +507,14 @@ public function ProcessMQTTStateUpdate(string $data): bool
                     break;
 
                 default:
-                    $this->SetValue($ident, is_scalar($val) ? (string)$val : json_encode($val));
+                    $this->SetValue($ident,
+                        is_scalar($val) ? (string)$val : json_encode($val));
             }
         }
     }
 
     /* ---------- 3) Letztes Update merken ---------- */
     $this->WriteAttributeString('LastMQTTUpdate', date('Y-m-d H:i:s'));
-
     return true;
 }
     
