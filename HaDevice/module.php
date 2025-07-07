@@ -605,179 +605,108 @@ public function ProcessMQTTStateUpdate(string $data): bool
         return $result !== false && $httpCode === 200;
     }
     
-    /**
-     * Determine variable type, value, profile and editability
-     * Enhanced with intelligent slider presentation for input_number entities
-     */
-    protected function DetermineVariableType(string $attributeName, $value, string $entityDomain = '', array $attributes = [], bool $isStatusVariable = false): array
-    {
-        $varType = VARIABLETYPE_STRING;
-        $convertedValue = is_scalar($value) ? (string)$value : json_encode($value);
-        $profile = '';
-        $editable = false;
-        $presentation = [];
+/**
+ * Determine variable type, converted value, editability
+ * und – falls nötig – eine Presentation-GUID.
+ *
+ * Klassische IP-Symcon-Profile (~Temperature, ~Switch …)
+ * werden **nicht** mehr gesetzt: $profile bleibt überall ''.
+ */
+protected function DetermineVariableType(
+    string $attributeName,
+    $value,
+    string $entityDomain = '',
+    array $attributes = [],
+    bool $isStatusVariable = false
+): array {
+    /* ---------- Default ---------- */
+    $varType        = VARIABLETYPE_STRING;
+    $convertedValue = is_scalar($value) ? (string)$value : json_encode($value);
+    $profile        = '';          // kein altes Profil
+    $editable       = false;
+    $presentation   = [];
 
-        // Handle Home Assistant device_class 'timestamp' for status variables
-        if ($isStatusVariable && isset($attributes['device_class']) && $attributes['device_class'] === 'timestamp') {
-            // Use integer variable with modern Date/Time presentation
-            $varType = VARIABLETYPE_INTEGER;
+    /* --- device_class = timestamp → Date/Time (read-only) --- */
+    if ($isStatusVariable
+        && ($attributes['device_class'] ?? '') === 'timestamp') {
 
-            // Convert ISO‑8601 string to Unix timestamp if needed
-            if (is_string($value) && $value !== '') {
-                $parsed = strtotime($value);
-                $convertedValue = ($parsed !== false) ? $parsed : 0;
-            } elseif (is_int($value)) {
-                $convertedValue = $value;
-            } else {
-                $convertedValue = 0;
-            }
+        $varType = VARIABLETYPE_INTEGER;
+        $convertedValue = is_string($value) ? strtotime($value) ?: 0
+                                            : (is_int($value) ? $value : 0);
 
-            // VARIABLE_PRESENTATION_DATE_TIME
-            $presentation = [
-                'PRESENTATION' => '{497C4845-27FA-6E4F-AE37-5D951D3BDBF9}',
-            ];
-
-            // Timestamp sensors are typically read‑only
-            $editable = false;
-
-            return [$varType, $convertedValue, $profile, $editable, $presentation];
-        }
-        
-        // Boolean domains
-        if (in_array($entityDomain, ['switch', 'binary_sensor', 'input_boolean', 'automation', 'light', 'device_tracker'])) {
-            $varType = VARIABLETYPE_BOOLEAN;
-            $profile = '~Switch';
-            $editable = in_array($entityDomain, ['switch', 'input_boolean', 'light']);
-            
-            if (is_bool($value)) {
-                $convertedValue = $value;
-            } elseif (is_string($value)) {
-                $convertedValue = in_array(strtolower($value), ['on', 'true', '1', 'home']);
-            } elseif (is_null($value)) {
-                $convertedValue = false;
-            } else {
-                $convertedValue = (bool)$value;
-            }
-            
-            // Choose presentation based on editability
-            if ($isStatusVariable) {
-                if ($editable) {
-                    // Editable → use switch presentation
-                    $presentation = $this->CreateBooleanPresentation($entityDomain, $editable);
-                } else {
-                    // Read‑only → simple value presentation
-                    // VARIABLE_PRESENTATION_VALUE_PRESENTATION
-                    $presentation = [
-                        'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
-                    ];
-                }
-            }
-        }
-        // Numeric domains with intelligent slider presentation
-        elseif (in_array($entityDomain, ['input_number', 'number'])) {
-            $varType = VARIABLETYPE_FLOAT;
-            $convertedValue = (float)$value;
-            $editable = true;
-            
-            // Create intelligent slider presentation based on Home Assistant attributes
-            $presentation = $this->CreateSliderPresentation($attributes, $convertedValue);
-        }
-        // Counter domains
-        elseif ($entityDomain === 'counter') {
-            $varType = VARIABLETYPE_INTEGER;
-            $convertedValue = (int)$value;
-            $editable = false;
-        }
-        // Sensor domains - check for numeric values
-        elseif ($entityDomain === 'sensor') {
-            if (is_numeric($value)) {
-                if (is_float($value) || (is_string($value) && strpos($value, '.') !== false)) {
-                    $varType = VARIABLETYPE_FLOAT;
-                    $convertedValue = (float)$value;
-                } else {
-                    $varType = VARIABLETYPE_INTEGER;
-                    $convertedValue = (int)$value;
-                }
-                
-                // Create custom presentation with suffix if unit_of_measurement is available (only for status variable)
-                $unit = $attributes['unit_of_measurement'] ?? '';
-                if ($unit !== '' && $isStatusVariable) {
-                    $presentation = [
-                        'PRESENTATION' => VARIABLE_PRESENTATION_SLIDER,
-                        'MIN' => 0,
-                        'MAX' => $convertedValue * 2, // Dynamic max based on current value
-                        'STEP_SIZE' => ($varType === VARIABLETYPE_FLOAT) ? 0.1 : 1,
-                        'SUFFIX' => ' ' . $unit,
-                        'DIGITS' => ($varType === VARIABLETYPE_FLOAT) ? 2 : 0
-                    ];
-                } else {
-                    // Set appropriate profiles for sensors without unit
-                    if (stripos($attributeName, 'temp') !== false) {
-                        $profile = '~Temperature';
-                    } elseif (stripos($attributeName, 'humid') !== false) {
-                        $profile = '~Humidity';
-                    } elseif (stripos($attributeName, 'bright') !== false) {
-                        $profile = '~Intensity.255';
-                    }
-                }
-            }
-        }
-        // Check value type for other cases
-        elseif (is_bool($value)) {
-            $varType = VARIABLETYPE_BOOLEAN;
-            $convertedValue = $value;
-            $profile = '~Switch';
-        } elseif (is_int($value)) {
-            $varType = VARIABLETYPE_INTEGER;
-            $convertedValue = $value;
-            
-            // Create custom presentation with suffix if unit_of_measurement is available (only for status variable)
-            $unit = $attributes['unit_of_measurement'] ?? '';
-            if ($unit !== '' && $isStatusVariable) {
-                $presentation = [
-                    'PRESENTATION' => '{6B9CAEEC-5958-C223-30F7-BD36569FC57A}', // Slider
-                    'MIN' => 0,
-                    'MAX' => $convertedValue * 2, // Dynamic max
-                    'STEP_SIZE' => 1,
-                    'SUFFIX' => ' ' . $unit,
-                    'DIGITS' => 0
-                ];
-            }
-        } elseif (is_float($value)) {
-            $varType = VARIABLETYPE_FLOAT;
-            $convertedValue = $value;
-            
-            // Create custom presentation with suffix if unit_of_measurement is available (only for status variable)
-            $unit = $attributes['unit_of_measurement'] ?? '';
-            if ($unit !== '' && $isStatusVariable) {
-                $presentation = [
-                    'PRESENTATION' => '{6B9CAEEC-5958-C223-30F7-BD36569FC57A}', // Slider
-                    'MIN' => 0,
-                    'MAX' => $convertedValue * 2, // Dynamic max
-                    'STEP_SIZE' => 0.1,
-                    'SUFFIX' => ' ' . $unit,
-                    'DIGITS' => 2
-                ];
-            } else {
-                // Set appropriate profiles for numeric values without unit
-                if (stripos($attributeName, 'temp') !== false) {
-                    $profile = '~Temperature';
-                } elseif (stripos($attributeName, 'humid') !== false) {
-                    $profile = '~Humidity';
-                }
-            }
-        }
-        
-        // If this is a read‑only status variable (no action) and no presentation was chosen yet,
-        // assign a simple value presentation so the value is displayed nicely in the UI
-        if ($isStatusVariable && !$editable && empty($presentation)) {
-            // VARIABLE_PRESENTATION_VALUE_PRESENTATION
-            $presentation = [
-                'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
-            ];
-        }
-        return [$varType, $convertedValue, $profile, $editable, $presentation];
+        $presentation = [
+            'PRESENTATION' => '{497C4845-27FA-6E4F-AE37-5D951D3BDBF9}', // Date/Time
+        ];
+        return [$varType, $convertedValue, $profile, false, $presentation];
     }
+
+    /* --- Boolean-Domänen --- */
+    if (in_array($entityDomain,
+        ['switch','binary_sensor','input_boolean','automation','light','device_tracker'])) {
+
+        $varType  = VARIABLETYPE_BOOLEAN;
+        $editable = in_array($entityDomain, ['switch','input_boolean','light']);
+
+        $convertedValue = is_bool($value) ? $value
+            : in_array(strtolower((string)$value), ['on','true','1','home']);
+
+        $presentation = $editable
+            ? $this->CreateBooleanPresentation($entityDomain, true)
+            : ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']; // Value
+    }
+
+    /* --- input_number / number --- */
+    elseif (in_array($entityDomain, ['input_number','number'])) {
+        $varType        = VARIABLETYPE_FLOAT;
+        $convertedValue = (float)$value;
+        $editable       = true;
+        $presentation   = $this->CreateSliderPresentation($attributes, $convertedValue);
+    }
+
+    /* --- Counter (read-only) --- */
+    elseif ($entityDomain === 'counter') {
+        $varType        = VARIABLETYPE_INTEGER;
+        $convertedValue = (int)$value;
+        $editable       = false;
+    }
+
+    /* --- Sensor (immer read-only) --- */
+    elseif ($entityDomain === 'sensor') {
+        if (is_numeric($value)) {
+            $varType        = (strpos((string)$value, '.') !== false) ? VARIABLETYPE_FLOAT
+                                                                      : VARIABLETYPE_INTEGER;
+            $convertedValue = $varType === VARIABLETYPE_FLOAT ? (float)$value : (int)$value;
+        }
+        $presentation = [
+            'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}', // Value
+            'SUFFIX'       => isset($attributes['unit_of_measurement'])
+                                ? ' ' . $attributes['unit_of_measurement'] : '',
+            'DIGITS'       => ($varType === VARIABLETYPE_FLOAT) ? 2 : 0
+        ];
+    }
+
+    /* --- primitive Fallbacks --- */
+    elseif (is_bool($value)) {
+        $varType        = VARIABLETYPE_BOOLEAN;
+        $convertedValue = $value;
+        $presentation   = ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}'];
+    }
+    elseif (is_int($value)) {
+        $varType        = VARIABLETYPE_INTEGER;
+        $convertedValue = $value;
+    }
+    elseif (is_float($value)) {
+        $varType        = VARIABLETYPE_FLOAT;
+        $convertedValue = $value;
+    }
+
+    /* --- Value-Presentation als Default für schreibgeschützte Status-Variablen --- */
+    if ($isStatusVariable && !$editable && empty($presentation)) {
+        $presentation = ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}'];
+    }
+
+    return [$varType, $convertedValue, $profile, $editable, $presentation];
+}
     
     /**
      * Create intelligent slider presentation for input_number entities
