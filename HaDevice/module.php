@@ -403,31 +403,55 @@ class HaDevice extends IPSModule
         return is_array($devices) ? $devices : null;
     }
     
-    /**
+/**
  * Process MQTT state update
+ *
+ * Erwartet einen JSON-String von HaBridge.
+ * - "entity_id"   (string)  Pflicht
+ * - "state"       (mixed)   optional
+ * - "attributes"  (array)   optional
+ *
+ * Die Routine akzeptiert Nachrichten, die
+ *  • sowohl "state" als auch "attributes" enthalten,
+ *  • nur "state" oder nur "attributes" enthalten.
+ *
+ * Sie aktualisiert
+ *  • die Status-Variable (falls "state" vorhanden) und
+ *  • bereits existierende Attribut-Variablen (falls im Objektbaum vorhanden).
+ *
+ * Es werden **keine neuen Variablen** angelegt und keine Präsentationen geändert.
+ *
+ * @param string $data JSON-kodierte Payload
+ * @return bool  true = verarbeitet, false = ignoriert/fehlerhaft
  */
 public function ProcessMQTTStateUpdate(string $data): bool
 {
-    // 1) Rohdaten in Array dekodieren
+    /* ---------- 0) Dekodieren & Grund-Checks ---------- */
     $payload = json_decode($data, true);
-    if (!is_array($payload) || !isset($payload['entity_id']) || !isset($payload['state'])) {
+    if (!is_array($payload) || !isset($payload['entity_id'])) {
+        return false;                                // entity_id bleibt Pflicht
+    }
+    // mind. "state" ODER "attributes" muss vorhanden sein
+    if (!array_key_exists('state', $payload) && !array_key_exists('attributes', $payload)) {
         return false;
     }
 
-    // 2) Instanzfilter
     $entityId = $this->ReadPropertyString('entity_id');
     if ($entityId !== $payload['entity_id']) {
-        return false;
+        return false;                                // Nachricht gehört zu einer anderen Instanz
     }
 
-    // 3) Status-Variable aktualisieren (unverändert)
-    if ($this->GetIDForIdent('Status') !== false) {
-        $varInfo = IPS_GetVariable($this->GetIDForIdent('Status'));
+    /* ---------- 1) Status-Variable (nur wenn 'state' gesetzt) ---------- */
+    if (array_key_exists('state', $payload) && $this->GetIDForIdent('Status') !== false) {
+
+        $statusId = $this->GetIDForIdent('Status');
+        $varInfo  = IPS_GetVariable($statusId);
+
         switch ($varInfo['VariableType']) {
             case VARIABLETYPE_BOOLEAN:
                 $value = is_bool($payload['state'])
                     ? $payload['state']
-                    : in_array(strtolower((string)$payload['state']), ['on','true','1','home']);
+                    : in_array(strtolower((string)$payload['state']), ['on','true','1','yes','home']);
                 break;
             case VARIABLETYPE_INTEGER:
                 $value = (int)$payload['state'];
@@ -441,10 +465,11 @@ public function ProcessMQTTStateUpdate(string $data): bool
         $this->SetValue('Status', $value);
     }
 
-    // 4) Attribut-Variablen **nur** dann aktualisieren, wenn sie existieren
+    /* ---------- 2) Attribut-Variablen ---------- */
     if (isset($payload['attributes']) && is_array($payload['attributes'])) {
         foreach ($payload['attributes'] as $key => $val) {
-            // Meta-Attribute überspringen
+
+            // Metadaten ignorieren – sollen unsichtbar bleiben
             if (in_array($key, [
                 'icon','initial','max','min','mode','step','unit_of_measurement',
                 'friendly_name','editable'
@@ -455,7 +480,7 @@ public function ProcessMQTTStateUpdate(string $data): bool
             $ident = preg_replace('/[^A-Za-z0-9_]/', '_', $key);
             $varId = $this->GetIDForIdent($ident);
             if ($varId === false) {
-                // Keine neue Variable erzeugen
+                // Variable existiert nicht → NICHT neu anlegen
                 continue;
             }
 
@@ -482,8 +507,9 @@ public function ProcessMQTTStateUpdate(string $data): bool
         }
     }
 
-    // 5) Zeitstempel sichern
+    /* ---------- 3) Letztes Update merken ---------- */
     $this->WriteAttributeString('LastMQTTUpdate', date('Y-m-d H:i:s'));
+
     return true;
 }
     
