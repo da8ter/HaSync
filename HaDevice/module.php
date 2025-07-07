@@ -404,48 +404,88 @@ class HaDevice extends IPSModule
     }
     
     /**
-     * Process MQTT state update
-     */
-    public function ProcessMQTTStateUpdate(string $data): bool
-    {
-        // Convert JSON string from RequestAction into an array
-        $payload = json_decode($data, true);
-        if (!is_array($payload)) {
-            return false;
-        }
-        if (!isset($payload['entity_id']) || !isset($payload['state'])) {
-            return false;
-        }
-        $entityId = $this->ReadPropertyString('entity_id');
-        if ($entityId !== $payload['entity_id']) {
-            return false;
-        }
-        // Update status variable
-        if ($this->GetIDForIdent('Status') !== false) {
-            $varInfo = IPS_GetVariable($this->GetIDForIdent('Status'));
-            $actualVarType = $varInfo['VariableType'];
-            switch ($actualVarType) {
-                case VARIABLETYPE_BOOLEAN:
-                    $value = is_bool($payload['state']) ? $payload['state'] :
-                            (strtolower($payload['state']) === 'on' ||
-                             strtolower($payload['state']) === 'true');
-                    break;
-                case VARIABLETYPE_INTEGER:
-                    $value = (int)$payload['state'];
-                    break;
-                case VARIABLETYPE_FLOAT:
-                    $value = (float)$payload['state'];
-                    break;
-                default:
-                    $value = (string)$payload['state'];
-                    break;
-            }
-            $this->SetValue('Status', $value);
-        }
-        // Store last update timestamp
-        $this->WriteAttributeString('LastMQTTUpdate', date('Y-m-d H:i:s'));
-        return true;
+ * Process MQTT state update
+ */
+public function ProcessMQTTStateUpdate(string $data): bool
+{
+    // 1) Rohdaten in Array dekodieren
+    $payload = json_decode($data, true);
+    if (!is_array($payload) || !isset($payload['entity_id']) || !isset($payload['state'])) {
+        return false;
     }
+
+    // 2) Instanzfilter
+    $entityId = $this->ReadPropertyString('entity_id');
+    if ($entityId !== $payload['entity_id']) {
+        return false;
+    }
+
+    // 3) Status-Variable aktualisieren (unverändert)
+    if ($this->GetIDForIdent('Status') !== false) {
+        $varInfo = IPS_GetVariable($this->GetIDForIdent('Status'));
+        switch ($varInfo['VariableType']) {
+            case VARIABLETYPE_BOOLEAN:
+                $value = is_bool($payload['state'])
+                    ? $payload['state']
+                    : in_array(strtolower((string)$payload['state']), ['on','true','1','home']);
+                break;
+            case VARIABLETYPE_INTEGER:
+                $value = (int)$payload['state'];
+                break;
+            case VARIABLETYPE_FLOAT:
+                $value = (float)$payload['state'];
+                break;
+            default:
+                $value = (string)$payload['state'];
+        }
+        $this->SetValue('Status', $value);
+    }
+
+    // 4) Attribut-Variablen **nur** dann aktualisieren, wenn sie existieren
+    if (isset($payload['attributes']) && is_array($payload['attributes'])) {
+        foreach ($payload['attributes'] as $key => $val) {
+            // Meta-Attribute überspringen
+            if (in_array($key, [
+                'icon','initial','max','min','mode','step','unit_of_measurement',
+                'friendly_name','editable'
+            ])) {
+                continue;
+            }
+
+            $ident = preg_replace('/[^A-Za-z0-9_]/', '_', $key);
+            $varId = $this->GetIDForIdent($ident);
+            if ($varId === false) {
+                // Keine neue Variable erzeugen
+                continue;
+            }
+
+            $varInfo = IPS_GetVariable($varId);
+            switch ($varInfo['VariableType']) {
+                case VARIABLETYPE_BOOLEAN:
+                    $bool = is_bool($val)
+                        ? $val
+                        : in_array(strtolower((string)$val), ['true','on','1','yes','home']);
+                    $this->SetValue($ident, $bool);
+                    break;
+
+                case VARIABLETYPE_INTEGER:
+                    $this->SetValue($ident, (int)$val);
+                    break;
+
+                case VARIABLETYPE_FLOAT:
+                    $this->SetValue($ident, (float)$val);
+                    break;
+
+                default:
+                    $this->SetValue($ident, is_scalar($val) ? (string)$val : json_encode($val));
+            }
+        }
+    }
+
+    // 5) Zeitstempel sichern
+    $this->WriteAttributeString('LastMQTTUpdate', date('Y-m-d H:i:s'));
+    return true;
+}
     
     /**
      * Handle user actions
