@@ -403,29 +403,34 @@ class HaDevice extends IPSModule
         return is_array($devices) ? $devices : null;
     }
     
-    /**
+ /**
  * Process MQTT state update
  *
- * Akzeptiert nun auch reine Attribut-Payloads ohne "state"-Feld.
- *  • entity_id   (string)   Pflicht
- *  • state       (mixed)    optional
- *  • attributes  (array)    optional
+ * Akzeptiert jetzt …
+ *  • volle Payloads   mit "state" und/oder "attributes"
+ *  • reine Attribute-Payloads  ohne "state"
+ *  • Topic-Spezialfälle wie …/last_updated (entity_id-Suffix wird toleriert)
  *
- * Falls weder "state" noch "attributes" vorhanden sind, wird das gesamte
- * JSON – abzüglich entity_id – als Attribute-Map interpretiert.
+ * Pflicht bleibt: "entity_id".
  */
 public function ProcessMQTTStateUpdate(string $data): bool
 {
     /* ---------- 0) Dekodieren & Grund-Checks ---------- */
     $payload = json_decode($data, true);
     if (!is_array($payload) || !isset($payload['entity_id'])) {
-        return false;                                // entity_id bleibt Pflicht
+        return false;                                       // entity_id bleibt Pflicht
+    }
+
+    // Akzeptiere entity_id, die **mit** unserer Basis-ID beginnt
+    $entityIdBase = $this->ReadPropertyString('entity_id');
+    if (strpos($payload['entity_id'], $entityIdBase) !== 0) {
+        return false;                                       // fremde Entität → Abbruch
     }
 
     // Wenn weder 'state' noch 'attributes' existieren,
     // aber weitere Schlüssel → alles als Attribute auffassen
     if (!array_key_exists('state', $payload) && !array_key_exists('attributes', $payload)) {
-        if (count($payload) > 1) {                   // außer entity_id gibt es noch Daten
+        if (count($payload) > 1) {                          // außer entity_id gibt es noch Daten
             $attributesRaw = $payload;
             unset($attributesRaw['entity_id']);
             $payload = [
@@ -433,19 +438,12 @@ public function ProcessMQTTStateUpdate(string $data): bool
                 'attributes' => $attributesRaw
             ];
         } else {
-            return false;                            // wirklich leer: ignorieren
+            return false;                                   // wirklich leer: ignorieren
         }
     }
 
-    // Nachricht gehört zu dieser Instanz?
-    $entityId = $this->ReadPropertyString('entity_id');
-    if ($entityId !== $payload['entity_id']) {
-        return false;
-    }
-
-    /* ---------- 1) Status-Variable (nur wenn 'state' gesetzt) ---------- */
+    /* ---------- 1) Status-Variable (nur wenn 'state' vorhanden) ---------- */
     if (array_key_exists('state', $payload) && $this->GetIDForIdent('Status') !== false) {
-
         $statusId = $this->GetIDForIdent('Status');
         $varInfo  = IPS_GetVariable($statusId);
 
@@ -454,7 +452,7 @@ public function ProcessMQTTStateUpdate(string $data): bool
                 $value = is_bool($payload['state'])
                     ? $payload['state']
                     : in_array(strtolower((string)$payload['state']),
-                              ['on', 'true', '1', 'yes', 'home']);
+                              ['on','true','1','yes','home']);
                 break;
             case VARIABLETYPE_INTEGER:
                 $value = (int)$payload['state'];
@@ -465,7 +463,6 @@ public function ProcessMQTTStateUpdate(string $data): bool
             default:
                 $value = (string)$payload['state'];
         }
-
         $this->SetValue('Status', $value);
     }
 
@@ -483,8 +480,7 @@ public function ProcessMQTTStateUpdate(string $data): bool
 
             $ident = preg_replace('/[^A-Za-z0-9_]/', '_', $key);
             $varId = $this->GetIDForIdent($ident);
-            if ($varId === false) {
-                // Variable existiert nicht → NICHT neu anlegen
+            if ($varId === false) {                         // keine neue Variable anlegen
                 continue;
             }
 
@@ -494,7 +490,7 @@ public function ProcessMQTTStateUpdate(string $data): bool
                     $bool = is_bool($val)
                         ? $val
                         : in_array(strtolower((string)$val),
-                                  ['true', 'on', '1', 'yes', 'home']);
+                                  ['true','on','1','yes','home']);
                     $this->SetValue($ident, $bool);
                     break;
 
