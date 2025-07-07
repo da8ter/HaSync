@@ -561,6 +561,10 @@ public function ProcessMQTTStateUpdate(string $data): bool
                     $service = 'input_number/set_value';
                     $data['value'] = (float)$value;
                     break;
+                case 'number':
+                    $service       = 'number/set_value';
+                    $data['value'] = (float)$value;
+                    break;
                 case 'light':
                     $service = $value ? 'light/turn_on' : 'light/turn_off';
                     break;
