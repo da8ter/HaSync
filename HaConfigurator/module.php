@@ -23,27 +23,19 @@ class HaConfigurator extends IPSModule
         $this->RegisterPropertyBoolean('use_realtime', false);
         $this->RegisterPropertyInteger('websocket_id', 0);
         
-        // Polling settings (fallback option)
-        $this->RegisterPropertyBoolean('use_polling', true);
-        $this->RegisterPropertyInteger('polling_interval', 30);
-        
-        // Timer for regular polling
-        $this->RegisterTimer('PollingTimer', 0, 'HACO_PollStates($_IPS["TARGET"]);');
-        
+       
         // Message handler
         $this->RegisterMessage(0, IPS_KERNELSTARTED);
     }
 
     public function Destroy()
     {
-        $this->SetTimerInterval('PollingTimer', 0);
         parent::Destroy();
     }
 
     public function ApplyChanges()
     {
         parent::ApplyChanges();
-        $this->SetupPolling();
     }
     
     /**
@@ -53,9 +45,6 @@ class HaConfigurator extends IPSModule
     {
         parent::MessageSink($TimeStamp, $SenderID, $Message, $Data);
 
-        if ($Message == IPS_KERNELSTARTED) {
-            $this->SetupPolling();
-        }
     }
     
     /**
@@ -73,47 +62,6 @@ class HaConfigurator extends IPSModule
         }
     }
     
-    /**
-     * Poll states from Home Assistant and update HaDevice instances
-     */
-    public function PollStates()
-    {
-        if (!$this->ReadPropertyBoolean('use_polling')) {
-            return;
-        }
-        
-        $HaDeviceModuleID = $this->GetHaDeviceModuleID();
-        if (empty($HaDeviceModuleID)) {
-            $this->LogMessage('Could not determine HaDevice module ID', KL_ERROR);
-            return;
-        }
-
-        $instanceIDs = IPS_GetInstanceListByModuleID($HaDeviceModuleID);
-        if (empty($instanceIDs)) {
-            return;
-        }
-
-        foreach ($instanceIDs as $instanceID) {
-            if (!IPS_InstanceExists($instanceID)) {
-                continue;
-            }
-
-            try {
-                $entityId = IPS_GetProperty($instanceID, 'entity_id');
-                if (empty($entityId)) {
-                    continue;
-                }
-
-                $state = $this->GetEntityState($entityId);
-                if ($state !== false) {
-                    IPS_RequestAction($instanceID, 'UpdateFromPolling', $state);
-                }
-            } catch (Exception $e) {
-                $this->SendDebug('PollStates', 'Error polling instance ' . $instanceID . ': ' . $e->getMessage(), 0);
-            }
-        }
-    }
-
     /**
      * Get entity state from Home Assistant
      */
