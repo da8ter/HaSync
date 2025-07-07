@@ -9,32 +9,8 @@
             "type": "PasswordTextBox",
             "name": "ha_token",
             "caption": "Home Assistant Token"
-        },
-        {
-            "type": "Label",
-            "caption": "" 
-        },
-        {
-            "type": "Label",
-            "caption": "Aktualisierungseinstellungen / Update Settings"
-        },
-        {
-            "type": "CheckBox",
-            "name": "use_polling",
-            "caption": "Polling aktivieren / Enable polling"
-        },
-        {
-            "type": "NumberSpinner",
-            "name": "polling_interval",
-            "caption": "Abfrageintervall (Sekunden) / Polling interval (seconds)",
-            "minimum": 5,
-            "maximum": 3600,
-            "suffix": "s"
-        },
-        {
-            "type": "Label",
-            "caption": "Für MQTT Echtzeit-Updates: Separates HaBridge Modul verwenden"
         }
+        
     ],
     "actions": [
         {
