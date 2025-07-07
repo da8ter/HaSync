@@ -101,8 +101,8 @@ class HaBridge extends IPSModule
         $discoveryPrefix = $this->ReadPropertyString('ha_discovery_prefix');
         
         // Subscribe to Home Assistant discovery topics
-        $this->SubscribeTopic($discoveryPrefix . '/+/+/config');
-        $this->SubscribeTopic($discoveryPrefix . '/+/+/+/config');
+      //  $this->SubscribeTopic($discoveryPrefix . '/+/+/config');
+       // $this->SubscribeTopic($discoveryPrefix . '/+/+/+/config');
         
         // Subscribe to state topics for existing devices
         $devices = $this->GetHaDeviceInstances();
