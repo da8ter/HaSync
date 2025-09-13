@@ -14,15 +14,120 @@ class HaDevice extends IPSModule
     public function Create()
     {
         parent::Create();
-        
         // Entity Configuration
         $this->RegisterPropertyString('entity_id', '');
         $this->RegisterPropertyInteger('parent_id', 0);
+        $this->RegisterPropertyBoolean('create_additional_vars', false);
         
         // MQTT Integration
         $this->RegisterPropertyBoolean('mqtt_enabled', false);
         $this->RegisterAttributeString('LastMQTTUpdate', '');
         $this->RegisterAttributeBoolean('Initialized', false);
+
+        // Create or reuse exactly one HaBridge (Splitter) for all HaDevices
+        $bridgeModuleID = '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}';
+        $sem = 'HaSync_HaBridge_Create';
+        if (@IPS_SemaphoreEnter($sem, 10000)) {
+            try {
+                $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
+                if (is_array($bridges) && count($bridges) > 0) {
+                    // Reuse first existing HaBridge
+                    @IPS_ConnectInstance($this->InstanceID, (int)$bridges[0]);
+                } else {
+                    // Explicitly create one HaBridge and connect this device
+                    $bridgeId = IPS_CreateInstance($bridgeModuleID);
+                    @IPS_SetName($bridgeId, 'HaBridge');
+                    @IPS_ConnectInstance($this->InstanceID, $bridgeId);
+                }
+            } finally {
+                @IPS_SemaphoreLeave($sem);
+            }
+        } else {
+            // Fallback: do not create in contention; connect to existing if any
+            $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
+            if (is_array($bridges) && count($bridges) > 0) {
+                @IPS_ConnectInstance($this->InstanceID, (int)$bridges[0]);
+            }
+        }
+    }
+
+    /**
+     * Remove all additional variables created by this module (prefixed with HAS_)
+     * Keeps the main Status variable intact.
+     */
+    protected function CleanupAdditionalVariables(): void
+    {
+        try {
+            $children = IPS_GetChildrenIDs($this->InstanceID);
+            foreach ($children as $id) {
+                $obj = IPS_GetObject($id);
+                if ($obj['ObjectType'] !== 2 /* otVariable */) {
+                    continue;
+                }
+                $ident = $obj['ObjectIdent'] ?? '';
+                if ($ident === 'Status') {
+                    continue;
+                }
+                if (strpos($ident, 'HAS_') === 0) {
+                    @IPS_DeleteVariable($id);
+                }
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+    }
+
+    /**
+     * Hint the management console to auto-create or attach a HaBridge as parent.
+     * See Symcon docs: GetCompatibleParents
+     */
+    public function GetCompatibleParents()
+    {
+        return '{"type": "require", "moduleIDs": ["{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}"]}';
+    }
+
+
+    /**
+     * Receive data from parent (HaBridge Splitter)
+     * Expects packets with DataID {C78CF679-C945-4AEE-BE58-A5616D85A6B8}
+     * and payload structure: { EntityID, Payload: { state?, attributes? } }
+     */
+    public function ReceiveData($JSONString)
+    {
+        $data = json_decode($JSONString, true);
+        if (!is_array($data) || !isset($data['DataID'])) {
+            return;
+        }
+        if ($data['DataID'] !== '{C78CF679-C945-4AEE-BE58-A5616D85A6B8}') {
+            return; // Not for us
+        }
+        $entityId = (string)($data['EntityID'] ?? '');
+        if ($entityId === '') {
+            return;
+        }
+        $myEntity = $this->ReadPropertyString('entity_id');
+        if ($myEntity === '' || strpos($entityId, $myEntity) !== 0) {
+            return; // Different entity
+        }
+        $payload = $data['Payload'] ?? [];
+        $out = ['entity_id' => $entityId];
+        if (is_array($payload)) {
+            if (array_key_exists('state', $payload)) {
+                $out['state'] = $payload['state'];
+            }
+            if (isset($payload['attributes']) && is_array($payload['attributes'])) {
+                $out['attributes'] = $payload['attributes'];
+            } else {
+                $attr = $payload;
+                unset($attr['state']);
+                if (!empty($attr)) {
+                    $out['attributes'] = $attr;
+                }
+            }
+        } elseif (is_string($payload) && $payload !== '') {
+            $out['state'] = $payload;
+        }
+        $this->ProcessMQTTStateUpdate(json_encode($out));
     }
     
     public function ApplyChanges()
@@ -30,9 +135,10 @@ class HaDevice extends IPSModule
         parent::ApplyChanges();
         // Ensure instance is marked as created/active before any early returns
         $this->SetStatus(102);
-        // If the module was already initialized, do not recreate or modify variables/presentations.
-        // Only refresh the value of the Status variable, then exit.
-        if ($this->ReadAttributeBoolean('Initialized')) {
+        $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
+        // If already initialized AND the user does NOT want additional variables,
+        // do a minimal refresh (Status only) and exit.
+        if ($this->ReadAttributeBoolean('Initialized') && !$createExtra) {
             $entityId = $this->ReadPropertyString('entity_id');
             if ($entityId === '') {
                 return;
@@ -53,9 +159,10 @@ class HaDevice extends IPSModule
                 }
             }
 
-            // Update only the Status variable value (no presentation/profile changes)
+            // Update Status variable value and ensure presentation (no other variables)
             if ($device !== null && isset($device['state']) && $this->GetIDForIdent('Status') !== false) {
-                $varInfo = IPS_GetVariable($this->GetIDForIdent('Status'));
+                $statusId = $this->GetIDForIdent('Status');
+                $varInfo = IPS_GetVariable($statusId);
                 $actualVarType = $varInfo['VariableType'];
                 $rawState = $device['state'];
                 switch ($actualVarType) {
@@ -73,6 +180,22 @@ class HaDevice extends IPSModule
                         break;
                 }
                 $this->SetValue('Status', $value);
+
+                // Ensure presentation is applied on Status
+                $entityDomain = '';
+                if (strpos($entityId, '.') !== false) {
+                    $entityDomain = substr($entityId, 0, strpos($entityId, '.'));
+                }
+                $attributes = $device['attributes'] ?? [];
+                $det = $this->DetermineVariableType('status', $device['state'] ?? '', $entityDomain, $attributes, true);
+                $presentation = $det[4] ?? [];
+                if (!empty($presentation)) {
+                    IPS_SetVariableCustomPresentation($statusId, $presentation);
+                }
+            }
+            // If additional variables are disabled, ensure we remove any existing HAS_ variables
+            if (!$createExtra) {
+                $this->CleanupAdditionalVariables();
             }
             return;
         }
@@ -129,9 +252,9 @@ class HaDevice extends IPSModule
         $editable = $varInfo[3];
         $presentation = $varInfo[4] ?? [];
         
-        // Register status variable with intelligent presentation
+        // Register status variable with presentation if available (always), else with profile
         if (!empty($presentation)) {
-            // Use modern variable presentation instead of profiles
+            // Use modern variable presentation instead of classic profiles
             $this->MaintainVariable('Status', 'Status', $varType, '', 0, true);
             $varId = $this->GetIDForIdent('Status');
             IPS_SetVariableCustomPresentation($varId, $presentation);
@@ -145,8 +268,8 @@ class HaDevice extends IPSModule
             $this->EnableAction('Status');
         }
         
-        // Set icon on Status variable if available (icon variable created via attributes)
-        if (isset($device['attributes']['icon'])) {
+        // Set icon on Status variable if available (only when additional vars are enabled)
+        if ($createExtra && isset($device['attributes']['icon'])) {
             $mappedIcon = $this->MapHAIconToSymcon($device['attributes']['icon']);
             if ($mappedIcon !== '') {
                 $stateVarId = $this->GetIDForIdent('Status');
@@ -154,15 +277,12 @@ class HaDevice extends IPSModule
             }
         }
         
-        // Process attributes as variables
-        if (isset($device['attributes']) && is_array($device['attributes'])) {
+        // Process attributes as variables (only when additional vars are enabled)
+        if ($createExtra && isset($device['attributes']) && is_array($device['attributes'])) {
             foreach ($device['attributes'] as $key => $value) {
-                // Skip metadata attributes (icon is now processed as variable)
-                if (in_array($key, ['friendly_name', 'editable'])) {
-                    continue;
-                }
+                // Do not skip: create variables for all attributes when enabled
                 
-                $ident = preg_replace('/[^A-Za-z0-9_]/', '_', $key);
+                $ident = 'HAS_' . preg_replace('/[^A-Za-z0-9_]/', '_', $key);
                 
                 // Determine variable type and configuration
                 // For attribute variables, don't use entityDomain to avoid slider presentation
@@ -194,6 +314,10 @@ class HaDevice extends IPSModule
                 }
             }
         }
+        // If user disabled additional variables, ensure cleanup of our prefixed variables
+        if (!$createExtra) {
+            $this->CleanupAdditionalVariables();
+        }
         // Mark initialization as complete so future ApplyChanges() calls only refresh Status value
         $this->WriteAttributeBoolean('Initialized', true);
     }
@@ -211,6 +335,7 @@ class HaDevice extends IPSModule
      */
     protected function CreateFallbackStatusVariable(string $entityId)
     {
+        $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
         $entityDomain = '';
         if (strpos($entityId, '.') !== false) {
             $entityDomain = substr($entityId, 0, strpos($entityId, '.'));
@@ -277,7 +402,7 @@ class HaDevice extends IPSModule
                 continue;
             }
             
-            $ident = preg_replace('/[^A-Za-z0-9_]/', '_', $key);
+            $ident = 'HAS_' . preg_replace('/[^A-Za-z0-9_]/', '_', $key);
             
             $profile = '';
             $varType = VARIABLETYPE_STRING;
@@ -466,19 +591,28 @@ public function ProcessMQTTStateUpdate(string $data): bool
         $this->SetValue('Status', $value);
     }
 
+    /* ---------- 1b) Icon-Update bei Attribut 'icon' ---------- */
+    $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
+    if ($createExtra && isset($payload['attributes']) && is_array($payload['attributes']) && isset($payload['attributes']['icon'])) {
+        $iconName = $this->MapHAIconToSymcon((string)$payload['attributes']['icon']);
+        if ($iconName !== '' && $this->GetIDForIdent('Status') !== false) {
+            IPS_SetIcon($this->GetIDForIdent('Status'), $iconName);
+        }
+    }
+
     /* ---------- 2) Attribut-Variablen aktualisieren (nur vorhandene) ---------- */
     if (isset($payload['attributes']) && is_array($payload['attributes'])) {
         foreach ($payload['attributes'] as $key => $val) {
-
-            // Meta-Attribute überspringen
-            if (in_array($key, [
+            // Skip meta attributes only if additional variable creation is disabled
+            $skipKeys = $createExtra ? [] : [
                 'icon','initial','max','min','mode','step','unit_of_measurement',
                 'friendly_name','editable'
-            ])) {
+            ];
+            if (in_array($key, $skipKeys)) {
                 continue;
             }
 
-            $ident = preg_replace('/[^A-Za-z0-9_]/', '_', $key);
+            $ident = 'HAS_' . preg_replace('/[^A-Za-z0-9_]/', '_', $key);
             $varId = $this->GetIDForIdent($ident);
             if ($varId === false) {                         // keine neue Variable anlegen
                 continue;
@@ -528,17 +662,55 @@ public function ProcessMQTTStateUpdate(string $data): bool
         if ($entityId === '') {
             return;
         }
-        // Get entity domain
+        // Determine domain from entity_id
         $entityDomain = '';
         if (strpos($entityId, '.') !== false) {
             $entityDomain = substr($entityId, 0, strpos($entityId, '.'));
         }
-        // Call appropriate Home Assistant service
-        $success = $this->CallHAService($entityId, $entityDomain, $ident, $value);
-        if (!$success) {
-            // Set local value anyway for immediate feedback
-            $this->SetValue($ident, $value);
+        // Map action to Home Assistant service and data
+        $service = '';
+        $data = ['entity_id' => $entityId];
+        if ($ident === 'Status') {
+            switch ($entityDomain) {
+                case 'input_number':
+                    $service = 'input_number/set_value';
+                    $data['value'] = (float)$value;
+                    break;
+                case 'number':
+                    $service = 'number/set_value';
+                    $data['value'] = (float)$value;
+                    break;
+                case 'light':
+                    $service = $value ? 'light/turn_on' : 'light/turn_off';
+                    break;
+                case 'switch':
+                    $service = $value ? 'switch/turn_on' : 'switch/turn_off';
+                    break;
+                case 'input_boolean':
+                    $service = $value ? 'input_boolean/turn_on' : 'input_boolean/turn_off';
+                    break;
+                default:
+                    $service = '';
+                    break;
+            }
         }
+        if ($service !== '') {
+            // Send to parent (HaBridge Splitter)
+            $this->SendDataToParent(json_encode([
+                'DataID'   => '{B5C8F9A1-2D3E-4F50-8A6B-1C2D3E4F5A6B}',
+                'Action'   => 'CallService',
+                'Service'  => $service,
+                'Data'     => $data,
+                'SenderID' => $this->InstanceID
+            ]));
+            // Immediate local feedback
+            if ($ident === 'Status') {
+                $this->SetValue($ident, $value);
+            }
+            return;
+        }
+        // Fallback: If we do not know how to map, at least set local value
+        $this->SetValue($ident, $value);
     }
     
     /**
@@ -809,7 +981,14 @@ protected function DetermineVariableType(
      */
     protected function MapHAIconToSymcon(string $haIcon): string
     {
-        $iconMap = [
+        // 1) Try mapping from assets/ha_icons.json (cached)
+        $map = $this->LoadIconMapping();
+        if (isset($map[$haIcon]) && is_string($map[$haIcon])) {
+            return $map[$haIcon];
+        }
+
+        // 2) Legacy fallback mapping for common icons
+        $legacy = [
             'mdi:lightbulb' => 'Bulb',
             'mdi:lightbulb-outline' => 'Bulb',
             'mdi:power-socket-eu' => 'Power',
@@ -824,7 +1003,42 @@ protected function DetermineVariableType(
             'mdi:motion-sensor' => 'Motion',
             'mdi:shield-check' => 'Shield'
         ];
-        
-        return $iconMap[$haIcon] ?? '';
+        return $legacy[$haIcon] ?? '';
+    }
+
+    /**
+     * Load icon mapping from assets/ha_icons.json with simple in-memory cache
+     */
+    protected function LoadIconMapping(): array
+    {
+        static $cache = null;
+        if ($cache !== null) {
+            return $cache;
+        }
+        $file = __DIR__ . '/assets/ha_icons.json';
+        if (!file_exists($file)) {
+            $this->SendDebug('IconMap', 'assets/ha_icons.json not found', 0);
+            $cache = [];
+            return $cache;
+        }
+        $json = @file_get_contents($file);
+        if ($json === false) {
+            $this->SendDebug('IconMap', 'Failed to read ha_icons.json', 0);
+            $cache = [];
+            return $cache;
+        }
+        // Be tolerant to a trailing dot or BOMs
+        $json = trim($json);
+        if (substr($json, -1) === '.') {
+            $json = substr($json, 0, -1);
+        }
+        $data = json_decode($json, true);
+        if (!is_array($data)) {
+            $this->SendDebug('IconMap', 'Invalid JSON in ha_icons.json', 0);
+            $cache = [];
+            return $cache;
+        }
+        $cache = $data;
+        return $cache;
     }
 }

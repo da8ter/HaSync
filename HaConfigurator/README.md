@@ -13,11 +13,15 @@ Beschreibung des Moduls.
 
 ### 1. Funktionsumfang
 
-*
+* Stellt die Verbindung zu Home Assistant per REST API her.
+* Listet alle Entitäten in einem Configurator auf (inkl. Name und Status).
+* Erstellt auf Wunsch automatisch `HaDevice`-Instanzen für ausgewählte Entitäten.
+* Verwaltet Verbindungsparameter (URL, Long-lived Access Token).
 
 ### 2. Voraussetzungen
 
 - IP-Symcon ab Version 7.1
+- Home Assistant mit aktivierter REST API
 
 ### 3. Software-Installation
 
@@ -33,8 +37,9 @@ __Konfigurationsseite__:
 
 Name     | Beschreibung
 -------- | ------------------
-         |
-         |
+Home Assistant URL | Basis-URL von Home Assistant (z. B. `http://192.168.1.10:8123`)
+Home Assistant Token | Long-lived Access Token aus dem HA-Profil
+Geräte (Configurator) | Liste der gefundenen Entitäten mit Möglichkeit zur Erstellung von `HaDevice`-Instanzen
 
 ### 5. Statusvariablen und Profile
 
@@ -42,26 +47,25 @@ Die Statusvariablen/Kategorien werden automatisch angelegt. Das Löschen einzeln
 
 #### Statusvariablen
 
-Name   | Typ     | Beschreibung
------- | ------- | ------------
-       |         |
-       |         |
+Dieses Modul legt keine eigenen Statusvariablen an.
 
 #### Profile
 
-Name   | Typ
------- | -------
-       |
-       |
+Keine (nicht zutreffend)
 
 ### 6. Visualisierung
 
-Die Funktionalität, die das Modul in der Visualisierung bietet.
+Der Configurator erscheint im Formular der Instanz. Über die Spalte „Erstellen“ können `HaDevice`-Instanzen pro Entität angelegt werden.
 
 ### 7. PHP-Befehlsreferenz
 
-`boolean HACO_BeispielFunktion(integer $InstanzID);`
-Erklärung der Funktion.
+Die nachfolgenden Befehle stehen (u. a.) zur Verfügung:
 
-Beispiel:
-`HACO_BeispielFunktion(12345);`
+- `mixed HACO_FetchDevices(integer $InstanzID);`
+  Ruft alle Entitäten aus Home Assistant ab (entspricht `/api/states`).
+
+- `mixed HACO_GetEntityState(integer $InstanzID, string $EntityID);`
+  Ruft den Zustand einer einzelnen Entität ab (entspricht `/api/states/{entity_id}`).
+
+- `void HACO_UpdateConfigurator(integer $InstanzID);`
+  Aktualisiert die Anzeige des Configurators in der Instanz.

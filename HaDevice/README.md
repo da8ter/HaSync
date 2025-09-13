@@ -13,7 +13,11 @@ Beschreibung des Moduls.
 
 ### 1. Funktionsumfang
 
-*
+* Repräsentiert eine einzelne Home Assistant Entität (z. B. `light.x`, `sensor.y`).
+* Legt automatisch eine Status-Variable an und erkennt den passenden Variablentyp.
+* Optional: erstellt zusätzliche Attribut-Variablen (gekennzeichnet mit `HAS_...`).
+* Unterstützt Echtzeit-Updates über die `HaBridge` (MQTT) sowie Abruf über den `HaConfigurator` (REST).
+* Bidirektional: Änderungen an editierbaren Entitäten (z. B. `light`, `switch`, `input_number`) werden an Home Assistant gesendet.
 
 ### 2. Voraussetzungen
 
@@ -33,8 +37,9 @@ __Konfigurationsseite__:
 
 Name     | Beschreibung
 -------- | ------------------
-         |
-         |
+Entity ID | Vollständige Home Assistant Entity-ID (z. B. `light.wohnzimmer`)
+Home Assistant Verbindung (automatisch) | Referenz auf `HaConfigurator`-Instanz (wird automatisch gesetzt)
+Create additional variables | Wenn aktiv, werden zusätzliche Attribut-Variablen (`HAS_...`) erzeugt
 
 ### 5. Statusvariablen und Profile
 
@@ -44,24 +49,29 @@ Die Statusvariablen/Kategorien werden automatisch angelegt. Das Löschen einzeln
 
 Name   | Typ     | Beschreibung
 ------ | ------- | ------------
-       |         |
-       |         |
+Status | Dynamisch (Boolean/Integer/Float/String) | Hauptstatus der Entität. Typ wird automatisch bestimmt und aktualisiert.
+HAS_*  | Variabel | Optionale, versteckte Zusatzvariablen für Attribute (nur wenn aktiviert)
 
 #### Profile
 
-Name   | Typ
------- | -------
-       |
-       |
+Es werden keine klassischen Variablenprofile gesetzt. Stattdessen nutzt das Modul moderne Variablen-Präsentationen (z. B. Schalter, Slider), die automatisch anhand der Entität/Attribute gewählt werden.
 
-### 6. Visualisierung
+### 6. WebFront
 
-Die Funktionalität, die das Modul in der Visualisierung bietet.
+Die Status-Variable ist sichtbar und – sofern editierbar – bedienbar (z. B. Schalter/Slider). Zusätzliche `HAS_*`-Variablen sind standardmäßig verborgen und dienen der Verarbeitung eingehender Attribute.
 
 ### 7. PHP-Befehlsreferenz
 
-`boolean HADE_BeispielFunktion(integer $InstanzID);`
-Erklärung der Funktion.
+- `bool HADE_ProcessMQTTStateUpdate(integer $InstanzID, string $JsonPayload);`
+  Verarbeitet einen eingehenden MQTT-Zustands- bzw. Attribut-Payload für diese Instanz. Normalerweise wird dieser Befehl automatisch durch die `HaBridge` aufgerufen; ein manueller Aufruf ist nur zu Test-/Diagnosezwecken nötig.
 
-Beispiel:
-`HADE_BeispielFunktion(12345);`
+  Beispiel:
+
+  ```php
+  $payload = json_encode([
+      'entity_id'  => 'light.wohnzimmer',
+      'state'      => 'on',
+      'attributes' => ['brightness' => 200]
+  ]);
+  HADE_ProcessMQTTStateUpdate(12345, $payload);
+  ```

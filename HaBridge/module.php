@@ -84,13 +84,125 @@ class HaBridge extends IPSModule
             if ($this->IsDiscoveryTopic($topic) && $this->ReadPropertyBoolean('enable_discovery')) {
                 $this->ProcessDiscoveryMessage($topic, $payload);
             } elseif ($this->IsStateTopic($topic) && $this->ReadPropertyBoolean('enable_state_updates')) {
-                $this->ProcessStateUpdate($topic, $payload);
+                // Extract entity and broadcast to children
+                $entityId = $this->ExtractEntityIdFromStateTopic($topic);
+                if ($entityId) {
+                    $this->BroadcastStateUpdate($entityId, $payload);
+                }
             }
         } catch (Exception $e) {
             $this->SendDebug('ReceiveData', 'Error processing message: ' . $e->getMessage(), 0);
         }
         
         return '';
+    }
+
+    /**
+     * Forward data from child devices to parent (MQTT) or other backends
+     */
+    public function ForwardData($JSONString)
+    {
+        $data = json_decode($JSONString, true);
+        if (!is_array($data) || !isset($data['DataID'])) {
+            return '';
+        }
+        // Device -> Bridge TX GUID
+        if ($data['DataID'] === '{B5C8F9A1-2D3E-4F50-8A6B-1C2D3E4F5A6B}') {
+            $action = $data['Action'] ?? '';
+            switch ($action) {
+                case 'MQTTPublish':
+                    $topic = (string)($data['Topic'] ?? '');
+                    $payload = $data['Payload'] ?? '';
+                    $retain = (bool)($data['Retain'] ?? false);
+                    if ($topic !== '') {
+                        $this->PublishMQTT($topic, $payload, $retain);
+                    }
+                    break;
+                case 'CallService':
+                    $service = (string)($data['Service'] ?? '');
+                    $svcData = isset($data['Data']) && is_array($data['Data']) ? $data['Data'] : [];
+                    if ($service !== '') {
+                        $ok = $this->CallHAService($service, $svcData);
+                        if (!$ok) {
+                            $this->SendDebug('ForwardData', 'CallService failed for ' . $service, 0);
+                        }
+                    }
+                    break;
+                default:
+                    // Unknown action - ignore for now
+                    break;
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Try to resolve Home Assistant URL and token from HaConfigurator instances
+     */
+    protected function GetHAConfig(): array
+    {
+        $result = ['url' => '', 'token' => ''];
+        try {
+            $moduleID = '{32D99DCD-A530-4907-3FB0-44D7D472771D}'; // HaConfigurator
+            $ids = @IPS_GetInstanceListByModuleID($moduleID);
+            if (is_array($ids)) {
+                foreach ($ids as $id) {
+                    if (!IPS_InstanceExists($id)) {
+                        continue;
+                    }
+                    $url = @IPS_GetProperty($id, 'ha_url');
+                    $token = @IPS_GetProperty($id, 'ha_token');
+                    if (is_string($url) && $url !== '' && is_string($token) && $token !== '') {
+                        $result['url'] = $url;
+                        $result['token'] = $token;
+                        break;
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+        return $result;
+    }
+
+    /**
+     * Execute Home Assistant service via REST API
+     */
+    protected function CallHAService(string $service, array $data): bool
+    {
+        $ha = $this->GetHAConfig();
+        if ($ha['url'] === '' || $ha['token'] === '') {
+            $this->SendDebug('CallHAService', 'Missing HA URL or token', 0);
+            return false;
+        }
+        $apiUrl = rtrim($ha['url'], '/') . '/api/services/' . ltrim($service, '/');
+        $headers = [
+            'Authorization: Bearer ' . $ha['token'],
+            'Content-Type: application/json'
+        ];
+        $payload = json_encode($data);
+        $curl = curl_init();
+        curl_setopt_array($curl, [
+            CURLOPT_URL => $apiUrl,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => false
+        ]);
+        $result = curl_exec($curl);
+        $http = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        if ($result === false) {
+            $this->SendDebug('CallHAService', 'cURL error: ' . curl_error($curl), 0);
+        }
+        curl_close($curl);
+        $ok = ($result !== false && $http >= 200 && $http < 300);
+        if (!$ok) {
+            $this->SendDebug('CallHAService', 'HTTP code ' . $http . ', response: ' . substr((string)$result, 0, 500), 0);
+        }
+        return $ok;
     }
     
     /**
@@ -101,8 +213,8 @@ class HaBridge extends IPSModule
         $discoveryPrefix = $this->ReadPropertyString('ha_discovery_prefix');
         
         // Subscribe to Home Assistant discovery topics
-      //  $this->SubscribeTopic($discoveryPrefix . '/+/+/config');
-       // $this->SubscribeTopic($discoveryPrefix . '/+/+/+/config');
+        $this->SubscribeTopic($discoveryPrefix . '/+/+/config');
+        $this->SubscribeTopic($discoveryPrefix . '/+/+/+/config');
         
         // Subscribe to state topics for existing devices
         $devices = $this->GetHaDeviceInstances();
@@ -112,12 +224,12 @@ class HaBridge extends IPSModule
         }
         
         // Store subscribed topics
-        $topics = array_merge(
-            [$discoveryPrefix . '/+/+/config', $discoveryPrefix . '/+/+/+/config'],
-            array_map(function($entityId) use ($discoveryPrefix) {
-                return $discoveryPrefix . '/' . str_replace('.', '/', $entityId) . '/state';
-            }, array_keys($devices))
-        );
+        $topics = [];
+        $topics[] = $discoveryPrefix . '/+/+/config';
+        $topics[] = $discoveryPrefix . '/+/+/+/config';
+        foreach (array_keys($devices) as $eId) {
+            $topics[] = $discoveryPrefix . '/' . str_replace('.', '/', $eId) . '/state';
+        }
         
         $this->WriteAttributeString('SubscribedTopics', json_encode($topics));
     }
@@ -212,13 +324,26 @@ class HaBridge extends IPSModule
         if (!$entityId) {
             return;
         }
-        
-        $instanceId = $this->FindHaDeviceByEntityId($entityId);
-        if (!$instanceId) {
-            return;
+        // Backward-compatible method retained; now broadcast instead of targeting instance
+        $this->BroadcastStateUpdate($entityId, $payload);
+    }
+
+    /**
+     * Broadcast state update to all child devices via DataFlow
+     */
+    protected function BroadcastStateUpdate(string $entityId, $payload)
+    {
+        // Normalize payload to array { state, attributes? }
+        $data = json_decode((string)$payload, true);
+        if (!is_array($data)) {
+            $data = ['state' => $payload];
         }
-        
-        $this->ForwardStateUpdate($instanceId, $payload);
+        $packet = [
+            'DataID'   => '{C78CF679-C945-4AEE-BE58-A5616D85A6B8}',
+            'EntityID' => $entityId,
+            'Payload'  => $data
+        ];
+        $this->SendDataToChildren(json_encode($packet));
     }
     
     /**
@@ -262,7 +387,7 @@ class HaBridge extends IPSModule
         foreach ($instanceIds as $instanceId) {
             if (IPS_InstanceExists($instanceId)) {
                 try {
-                    $instanceEntityId = IPS_GetProperty($instanceId, 'entity_id');
+                    $instanceEntityId = @IPS_GetProperty($instanceId, 'entity_id');
                     if ($instanceEntityId === $entityId) {
                         // Update mapping
                         $mapping[$entityId] = $instanceId;
@@ -294,7 +419,7 @@ class HaBridge extends IPSModule
             }
             
             // Get entity_id for this instance
-            $entityId = IPS_GetProperty($instanceId, 'entity_id');
+            $entityId = @IPS_GetProperty($instanceId, 'entity_id');
             $data['entity_id'] = $entityId;
             
             // Forward to HaDevice via RequestAction
@@ -322,7 +447,7 @@ class HaBridge extends IPSModule
             return;
         }
         
-        $statusVarId = @IPS_GetVariableIDByName('Status', $instanceId);
+        $statusVarId = @IPS_GetObjectIDByIdent('Status', $instanceId);
         if ($statusVarId === false) {
             return;
         }
@@ -383,7 +508,7 @@ class HaBridge extends IPSModule
         foreach ($instanceIds as $instanceID) {
             if (IPS_InstanceExists($instanceID)) {
                 try {
-                    $entityId = IPS_GetProperty($instanceID, 'entity_id');
+                    $entityId = @IPS_GetProperty($instanceID, 'entity_id');
                     if (!empty($entityId)) {
                         $devices[$entityId] = $instanceID;
                     }

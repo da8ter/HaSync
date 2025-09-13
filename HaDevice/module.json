@@ -5,8 +5,7 @@
     "vendor": "",
     "aliases": [],
     "parentRequirements": [
-        "{32D99DCD-A530-4907-3FB0-44D7D472771D}",
-        "{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}"
+        "{B5C8F9A1-2D3E-4F50-8A6B-1C2D3E4F5A6B}"
     ],
     "childRequirements": [],
     "implemented": ["{C78CF679-C945-4AEE-BE58-A5616D85A6B8}"],

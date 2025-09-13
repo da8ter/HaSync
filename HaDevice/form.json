@@ -12,6 +12,11 @@
             "moduleID": "{32D99DCD-A530-4907-3FB0-44D7D472771D}",
             "width": "auto",
             "enabled": false
+        },
+        {
+            "type": "CheckBox",
+            "name": "create_additional_vars",
+            "caption": "Create additional variables"
         }
     ],
     "actions": [

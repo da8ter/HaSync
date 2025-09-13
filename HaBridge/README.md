@@ -36,52 +36,44 @@ Home Assistant MQTT Integration für Echtzeit-Updates
 Unter 'Instanz hinzufügen' kann das 'HaBridge'-Modul mithilfe des Schnellfilters gefunden werden.  
 - Weitere Informationen zum Hinzufügen von Instanzen in der [Dokumentation der Instanzen](https://www.symcon.de/service/dokumentation/konzepte/instanzen/#Instanz_hinzufügen)
 
-__Konfigurationsseite__:
-
-Name                    | Beschreibung
------------------------ | ------------------
-Discovery Prefix        | MQTT Topic Prefix für Home Assistant Discovery (Standard: homeassistant)
-Auto-Discovery         | Automatische Erkennung neuer Geräte über MQTT
-Echtzeit State Updates  | Sofortige Aktualisierung bei Änderungen in Home Assistant
-HaConfigurator Instanz      | Verknüpfung mit bestehender HaConfigurator Instanz für Fallback
+  __Konfigurationsseite__:
+  
+  Name                    | Beschreibung
+  ----------------------- | ------------------
+  Discovery Prefix        | MQTT Topic Prefix für Home Assistant Discovery (Standard: homeassistant)
+  Auto-Discovery         | Automatische Erkennung neuer Geräte über MQTT
+  Echtzeit State Updates  | Sofortige Aktualisierung bei Änderungen in Home Assistant
 
 ### 5. Home Assistant Konfiguration
-
-Fügen Sie folgende Konfiguration zu Ihrer `configuration.yaml` hinzu:
-
-```yaml
-mqtt:
-  broker: IP_IHRES_MQTT_SERVERS
-  port: 1883
-  username: mqtt_user
-  password: mqtt_password
-  discovery: true
-  discovery_prefix: homeassistant
-  birth_message:
-    topic: 'homeassistant/status'
-    payload: 'online'
-  will_message:
-    topic: 'homeassistant/status'
-    payload: 'offline'
-```
+ 
+ Es wird ausschließlich der IP‑Symcon MQTT Server als Broker genutzt. Die Einrichtung erfolgt in Home Assistant über die UI:
+ 
+ 1. In Home Assistant: **Einstellungen** → **Geräte & Dienste** → **Integration hinzufügen** → „MQTT“ auswählen.
+ 2. Verbindungstyp: **Externer Broker** (HA verbindet sich zum IP‑Symcon MQTT Server).
+ 3. Broker-Daten:
+    - Host/Adresse: IP/Hostname des IP‑Symcon‑Systems
+    - Port: `1883`
+    - Benutzername/Passwort: nur falls im IP‑Symcon „MQTT Server“ konfiguriert
+ 4. Optionen prüfen:
+    - „Discovery aktivieren“ einschalten
+    - „Discovery Prefix“: `homeassistant`
+    - Birth Message (optional): Topic `homeassistant/status`, Payload `online`
+    - Will Message (optional): Topic `homeassistant/status`, Payload `offline`
+ 5. Speichern. In IP‑Symcon sicherstellen, dass die **HaBridge** als Kind des **MQTT Server** verbunden ist.
 
 ### 6. Statusvariablen und Profile
 
-Die Statusvariablen/Kategorien werden automatisch angelegt. Das Löschen einzelner kann zu Fehlfunktionen führen.
-
 #### Statusvariablen
 
-Name   | Typ     | Beschreibung
------- | ------- | ------------
-Status | Integer | Verbindungsstatus zur MQTT Integration
+Dieses Modul legt keine eigenen Statusvariablen an.
 
 #### Profile
 
-Es werden keine zusätzlichen Profile angelegt.
+Keine (nicht zutreffend)
 
 ### 7. PHP-Befehlsreferenz
 
-#### HaBridge_EnableMQTTForExistingDevices(integer $InstanzID)
+#### HAMQ_EnableMQTTForExistingDevices(integer $InstanzID)
 Aktiviert MQTT Updates für alle bestehenden HaDevice Instanzen.
 
 **Parameter:**
@@ -92,13 +84,13 @@ Aktiviert MQTT Updates für alle bestehenden HaDevice Instanzen.
 
 **Beispiel:**
 ```php
-$result = HaBridge_EnableMQTTForExistingDevices(12345);
+$result = HAMQ_EnableMQTTForExistingDevices(12345);
 if ($result) {
     echo "MQTT erfolgreich für bestehende Geräte aktiviert";
 }
 ```
 
-#### HaBridge_RunDiscovery(integer $InstanzID)
+#### HAMQ_RunDiscovery(integer $InstanzID)
 Führt eine manuelle Discovery-Suche nach neuen Home Assistant Geräten aus.
 
 **Parameter:**
@@ -106,7 +98,7 @@ Führt eine manuelle Discovery-Suche nach neuen Home Assistant Geräten aus.
 
 **Beispiel:**
 ```php
-HaBridge_RunDiscovery(12345);
+HAMQ_RunDiscovery(12345);
 ```
 
 ### Fehlerbehebung

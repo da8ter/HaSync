@@ -1,15 +1,18 @@
 {
     "id": "{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}",
     "name": "HaBridge",
-    "type": 3,
+    "type": 2,
     "vendor": "Stephan Sprick",
     "aliases": [],
     "parentRequirements": [
         "{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}"
     ],
-    "childRequirements": [],
+    "childRequirements": [
+        "{C78CF679-C945-4AEE-BE58-A5616D85A6B8}"
+    ],
     "implemented": [
-        "{7F7632D9-FA40-4F38-8DEA-C83CD4325A32}"
+        "{7F7632D9-FA40-4F38-8DEA-C83CD4325A32}",
+        "{B5C8F9A1-2D3E-4F50-8A6B-1C2D3E4F5A6B}"
     ],
     "prefix": "HAMQ",
     "url": ""
