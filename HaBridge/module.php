@@ -21,15 +21,13 @@ class HaBridge extends IPSModule
         // Properties
         $this->RegisterPropertyString('ClientID', 'HaBridge_' . $this->InstanceID);
         $this->RegisterPropertyString('ha_discovery_prefix', 'homeassistant');
-        $this->RegisterPropertyBoolean('enable_discovery', true);
-        $this->RegisterPropertyBoolean('enable_state_updates', true);
         
         // Attributes
         $this->RegisterAttributeString('SubscribedTopics', json_encode([]));
         $this->RegisterAttributeString('EntityMapping', '{}');
         
-        // Timer
-        $this->RegisterTimer('DiscoveryTimer', 0, 'HAMQ_RunDiscovery($_IPS[\'TARGET\']);');
+        // Neutralize legacy discovery timer (kept with 0 interval and no-op callback)
+        $this->RegisterTimer('DiscoveryTimer', 0, ';');
     }
 
     public function ApplyChanges()
@@ -43,12 +41,6 @@ class HaBridge extends IPSModule
         
         try {
             $this->SubscribeToTopics();
-            
-            if ($this->ReadPropertyBoolean('enable_discovery')) {
-                $this->SetTimerInterval('DiscoveryTimer', 60000);
-            } else {
-                $this->SetTimerInterval('DiscoveryTimer', 0);
-            }
             
             $this->SetStatus(102);
             
@@ -81,9 +73,7 @@ class HaBridge extends IPSModule
         }
         
         try {
-            if ($this->IsDiscoveryTopic($topic) && $this->ReadPropertyBoolean('enable_discovery')) {
-                $this->ProcessDiscoveryMessage($topic, $payload);
-            } elseif ($this->IsStateTopic($topic) && $this->ReadPropertyBoolean('enable_state_updates')) {
+            if ($this->IsStateTopic($topic)) {
                 // Extract entity and broadcast to children
                 $entityId = $this->ExtractEntityIdFromStateTopic($topic);
                 if ($entityId) {
@@ -212,10 +202,6 @@ class HaBridge extends IPSModule
     {
         $discoveryPrefix = $this->ReadPropertyString('ha_discovery_prefix');
         
-        // Subscribe to Home Assistant discovery topics
-        $this->SubscribeTopic($discoveryPrefix . '/+/+/config');
-        $this->SubscribeTopic($discoveryPrefix . '/+/+/+/config');
-        
         // Subscribe to state topics for existing devices
         $devices = $this->GetHaDeviceInstances();
         foreach ($devices as $entityId => $instanceId) {
@@ -225,8 +211,6 @@ class HaBridge extends IPSModule
         
         // Store subscribed topics
         $topics = [];
-        $topics[] = $discoveryPrefix . '/+/+/config';
-        $topics[] = $discoveryPrefix . '/+/+/+/config';
         foreach (array_keys($devices) as $eId) {
             $topics[] = $discoveryPrefix . '/' . str_replace('.', '/', $eId) . '/state';
         }
@@ -253,15 +237,6 @@ class HaBridge extends IPSModule
     }
     
     /**
-     * Check if topic is a discovery topic
-     */
-    protected function IsDiscoveryTopic($topic): bool
-    {
-        $discoveryPrefix = $this->ReadPropertyString('ha_discovery_prefix');
-        return strpos($topic, $discoveryPrefix) === 0 && strpos($topic, '/config') !== false;
-    }
-    
-    /**
      * Check if topic is a state topic
      */
     protected function IsStateTopic($topic): bool
@@ -280,40 +255,7 @@ class HaBridge extends IPSModule
         return false;
     }
     
-    /**
-     * Process Home Assistant discovery messages
-     */
-    protected function ProcessDiscoveryMessage($topic, $payload)
-    {
-        $entityId = $this->ExtractEntityIdFromTopic($topic);
-        if (!$entityId) {
-            return;
-        }
-        
-        if (empty($payload)) {
-            // Empty payload means device removal
-            $this->RemoveDeviceByTopic($topic);
-            return;
-        }
-        
-        $config = json_decode($payload, true);
-        if (!is_array($config)) {
-            return;
-        }
-        
-        // Check if HaDevice instance exists for this entity
-        $instanceId = $this->FindHaDeviceByEntityId($entityId);
-        if ($instanceId) {
-            // Update entity mapping
-            $mapping = json_decode($this->ReadAttributeString('EntityMapping'), true);
-            $mapping[$entityId] = $instanceId;
-            $this->WriteAttributeString('EntityMapping', json_encode($mapping));
-            
-            // Subscribe to state topic for this entity
-            $stateTopic = str_replace('/config', '/state', $topic);
-            $this->SubscribeTopic($stateTopic);
-        }
-    }
+    // Auto-Discovery support removed; discovery messages are no longer processed.
     
     /**
      * Process state updates from Home Assistant
@@ -346,16 +288,7 @@ class HaBridge extends IPSModule
         $this->SendDataToChildren(json_encode($packet));
     }
     
-    /**
-     * Extract entity ID from discovery topic
-     */
-    protected function ExtractEntityIdFromTopic($topic): ?string
-    {
-        if (preg_match('/homeassistant\/([^\/]+)\/([^\/]+)\/config/', $topic, $matches)) {
-            return $matches[1] . '.' . $matches[2];
-        }
-        return null;
-    }
+    // Auto-Discovery support removed; no extraction from discovery topics.
     
     /**
      * Extract entity ID from state topic
@@ -479,23 +412,7 @@ class HaBridge extends IPSModule
         }
     }
     
-    /**
-     * Remove device based on discovery topic
-     */
-    protected function RemoveDeviceByTopic($topic)
-    {
-        $entityId = $this->ExtractEntityIdFromTopic($topic);
-        if (!$entityId) {
-            return;
-        }
-        
-        // Remove from entity mapping
-        $mapping = json_decode($this->ReadAttributeString('EntityMapping'), true);
-        if (isset($mapping[$entityId])) {
-            unset($mapping[$entityId]);
-            $this->WriteAttributeString('EntityMapping', json_encode($mapping));
-        }
-    }
+    // Auto-Discovery support removed; no discovery-based device removal.
     
     /**
      * Get all HaDevice instances
@@ -521,18 +438,7 @@ class HaBridge extends IPSModule
         return $devices;
     }
     
-    /**
-     * Run discovery (called by timer)
-     */
-    public function RunDiscovery()
-    {
-        if (!$this->ReadPropertyBoolean('enable_discovery')) {
-            return;
-        }
-        
-        $discoveryPrefix = $this->ReadPropertyString('ha_discovery_prefix');
-        $this->PublishMQTT($discoveryPrefix . '/status', 'online');
-    }
+    // Auto-Discovery run method removed; realtime state updates are always active.
     
     /**
      * Publish MQTT message via MQTT Server

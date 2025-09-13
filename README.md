@@ -9,7 +9,7 @@ Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon m
 ## 🌟 Features
 
 - ✅ **Automatische Geräteerkennung** über REST API Configurator
-- ✅ **Echtzeitaktualisierung** über MQTT (optional)
+- ✅ **Echtzeitaktualisierung** über MQTT
 - ✅ **Intelligente Typerkennung** für verschiedene Home Assistant Entitäten
 - ✅ **Bidirektionale Kommunikation** - Steuern von HA-Geräten aus IP-Symcon
 - ✅ **Saubere Architektur** mit getrennten Modulen für verschiedene Aufgaben
@@ -57,8 +57,8 @@ Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon m
 
 ### Schritt 1: Home Assistant Token erstellen
 
-1. Home Assistant aufrufen → **Profil** → **Long-lived access tokens**
-2. **Create Token** → Name vergeben (z.B. "IP-Symcon")
+1. Home Assistant aufrufen → **Profil** → **Sicherheit** → **Langlebige Zugriffstoken**
+2. **Token erstellen** → Name vergeben (z.B. "IP-Symcon")
 3. Token kopieren und sicher aufbewahren
 
 ### Schritt 2: MQTT in Home Assistant per UI einrichten
@@ -72,8 +72,6 @@ Hinweis: Es wird ausschließlich der IP-Symcon MQTT Server als Broker verwendet.
    - Port: `1883`
    - Benutzername/Passwort: nur ausfüllen, wenn im IP‑Symcon „MQTT Server“ entsprechende Zugangsdaten konfiguriert sind. Ansonsten leer lassen.
 4. Erweiterte Optionen öffnen und prüfen:
-   - „Discovery aktivieren“ einschalten (Enable discovery)
-   - „Discovery Prefix“: `homeassistant` (Standard belassen)
    - Birth Message (optional, empfohlen):
      - Topic: `homeassistant/status`
      - Payload: `online`
@@ -81,20 +79,30 @@ Hinweis: Es wird ausschließlich der IP-Symcon MQTT Server als Broker verwendet.
      - Topic: `homeassistant/status`
      - Payload: `offline`
 5. Speichern/Absenden. Die Integration sollte jetzt verbunden sein.
-6. Prüfung:
-   - In Home Assistant unter **Einstellungen → Geräte & Dienste → MQTT** sollte der Verbindungsstatus „Verbunden“ anzeigen.
-   - In IP‑Symcon in der „MQTT Server“-Instanz sollte Home Assistant als Client erscheinen.
-7. In IP‑Symcon die **HaBridge**-Instanz erstellen/prüfen (siehe unten):
+6. In IP‑Symcon die **HaBridge**-Instanz erstellen/prüfen (siehe unten):
    - **Instanz hinzufügen** → **HaBridge**
    - **Parent**: den **MQTT Server** auswählen
    - „Discovery Prefix“: `homeassistant` (Standard)
    - Übernehmen
 
-### Schritt 3: HaConfigurator konfigurieren
+### Schritt 3: MQTT State Stream (configuration.yaml) aktivieren
+
+Füge in der Home Assistant `configuration.yaml` folgenden Abschnitt ein, damit Zustände und Attribute per MQTT veröffentlicht werden:
+
+```yaml
+mqtt_statestream:
+  base_topic: homeassistant
+  publish_attributes: true
+  publish_timestamps: true
+```
+
+Anschließend Home Assistant neu starten.
+
+### Schritt 4: HaConfigurator konfigurieren
 
 1. **Instanz hinzufügen** → **HaConfigurator**
 2. **Home Assistant URL** eingeben (z. B. `http://192.168.1.100:8123`)
-3. **Long-lived Access Token** einfügen
+3. **Langlebige Zugriffstoken** einfügen
 4. **Übernehmen** → Configurator öffnet sich automatisch
 5. Gewünschte Geräte auswählen und **Erstellen** klicken
 
@@ -136,7 +144,6 @@ Das HaDevice Modul erkennt automatisch den korrekten Variablentyp:
 ### MQTT Echtzeit-Updates (HaBridge)
 - Sofortige Aktualisierung bei Änderungen
 - Automatische Weiterleitung an HaDevice Instanzen
-- Unterstützt Discovery-Nachrichten
 
 ### Bidirektionale Steuerung
 - IP-Symcon → Home Assistant über REST API Service Calls
@@ -162,7 +169,6 @@ Das HaDevice Modul erkennt automatisch den korrekten Variablentyp:
 ### MQTT funktioniert nicht
 - MQTT Server Modul korrekt konfiguriert?
 - Home Assistant MQTT Integration aktiv?
-- Discovery Topics richtig abonniert?
 
 ### Variablen werden nicht erstellt
 - Entität in Home Assistant verfügbar?

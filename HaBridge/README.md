@@ -14,7 +14,6 @@ Home Assistant MQTT Integration für Echtzeit-Updates
 ### 1. Funktionsumfang
 
 * Echtzeit-Updates von Home Assistant über MQTT
-* Automatische Geräteerkennung über MQTT Discovery
 * Bidirektionale Kommunikation mit Home Assistant
 * Integration mit bestehenden HaConfigurator/HaDevice Instanzen
 * Unterstützung für alle Home Assistant Entity-Typen
@@ -40,9 +39,7 @@ Unter 'Instanz hinzufügen' kann das 'HaBridge'-Modul mithilfe des Schnellfilter
   
   Name                    | Beschreibung
   ----------------------- | ------------------
-  Discovery Prefix        | MQTT Topic Prefix für Home Assistant Discovery (Standard: homeassistant)
-  Auto-Discovery         | Automatische Erkennung neuer Geräte über MQTT
-  Echtzeit State Updates  | Sofortige Aktualisierung bei Änderungen in Home Assistant
+  Discovery Prefix        | MQTT Topic Prefix (Standard: homeassistant). Muss mit `mqtt_statestream.base_topic` aus Home Assistant übereinstimmen.
 
 ### 5. Home Assistant Konfiguration
  
@@ -55,11 +52,22 @@ Unter 'Instanz hinzufügen' kann das 'HaBridge'-Modul mithilfe des Schnellfilter
     - Port: `1883`
     - Benutzername/Passwort: nur falls im IP‑Symcon „MQTT Server“ konfiguriert
  4. Optionen prüfen:
-    - „Discovery aktivieren“ einschalten
-    - „Discovery Prefix“: `homeassistant`
     - Birth Message (optional): Topic `homeassistant/status`, Payload `online`
     - Will Message (optional): Topic `homeassistant/status`, Payload `offline`
  5. Speichern. In IP‑Symcon sicherstellen, dass die **HaBridge** als Kind des **MQTT Server** verbunden ist.
+
+#### MQTT State Stream (configuration.yaml) aktivieren
+
+Füge in der Home Assistant `configuration.yaml` folgenden Abschnitt ein, damit Zustände und Attribute per MQTT veröffentlicht werden. Der `base_topic` muss mit dem `Discovery Prefix` in der HaBridge übereinstimmen:
+
+```yaml
+mqtt_statestream:
+  base_topic: homeassistant
+  publish_attributes: true
+  publish_timestamps: true
+```
+
+Starte anschließend Home Assistant neu.
 
 ### 6. Statusvariablen und Profile
 
@@ -74,7 +82,7 @@ Keine (nicht zutreffend)
 ### 7. PHP-Befehlsreferenz
 
 #### HAMQ_EnableMQTTForExistingDevices(integer $InstanzID)
-Aktiviert MQTT Updates für alle bestehenden HaDevice Instanzen.
+Aktiviert MQTT-Updates für alle bestehenden HaDevice-Instanzen (Realtime ist immer aktiv).
 
 **Parameter:**
 - $InstanzID: Instanz-ID des HaBridge Moduls
@@ -90,17 +98,6 @@ if ($result) {
 }
 ```
 
-#### HAMQ_RunDiscovery(integer $InstanzID)
-Führt eine manuelle Discovery-Suche nach neuen Home Assistant Geräten aus.
-
-**Parameter:**
-- $InstanzID: Instanz-ID des HaBridge Moduls
-
-**Beispiel:**
-```php
-HAMQ_RunDiscovery(12345);
-```
-
 ### Fehlerbehebung
 
 **Problem:** Keine MQTT Nachrichten werden empfangen
@@ -109,11 +106,9 @@ HAMQ_RunDiscovery(12345);
 - Kontrollieren Sie die Discovery Prefix Einstellung
 
 **Problem:** Geräte werden nicht automatisch erstellt
-- Aktivieren Sie Auto-Discovery in der HaBridge Konfiguration
 - Stellen Sie sicher, dass eine HaConfigurator Instanz konfiguriert ist
-- Prüfen Sie die Home Assistant MQTT Discovery Konfiguration
+- Prüfen Sie die Home Assistant MQTT Konfiguration (Broker verbunden, Topics vorhanden)
 
 **Problem:** State Updates funktionieren nicht
-- Aktivieren Sie "Echtzeit State Updates"
 - Überprüfen Sie die MQTT Topic Struktur in Home Assistant
 - Kontrollieren Sie die Debug-Ausgaben in IP-Symcon

@@ -10,16 +10,6 @@
             "caption": "Discovery Prefix"
         },
         {
-            "type": "CheckBox",
-            "name": "enable_discovery",
-            "caption": "Auto-Discovery aktivieren"
-        },
-        {
-            "type": "CheckBox",
-            "name": "enable_state_updates",
-            "caption": "Echtzeit State Updates"
-        },
-        {
             "type": "Label",
             "caption": "MQTT Integration arbeitet direkt mit HaDevice Instanzen"
         }
@@ -29,11 +19,6 @@
             "type": "Button",
             "caption": "MQTT für bestehende Geräte aktivieren",
             "onClick": "HAMQ_EnableMQTTForExistingDevices($id);"
-        },
-        {
-            "type": "Button",
-            "caption": "Discovery ausführen",
-            "onClick": "HAMQ_RunDiscovery($id);"
         }
     ],
     "status": [
