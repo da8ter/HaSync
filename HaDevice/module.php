@@ -165,22 +165,27 @@ class HaDevice extends IPSModule
                 $varInfo = IPS_GetVariable($statusId);
                 $actualVarType = $varInfo['VariableType'];
                 $rawState = $device['state'];
-                switch ($actualVarType) {
-                    case VARIABLETYPE_BOOLEAN:
-                        $value = in_array(strtolower((string)$rawState), ['on', 'true', '1', 'home']);
-                        break;
-                    case VARIABLETYPE_INTEGER:
-                        $value = (int)$rawState;
-                        break;
-                    case VARIABLETYPE_FLOAT:
-                        $value = (float)$rawState;
-                        break;
-                    default:
-                        $value = (string)$rawState;
-                        break;
+                $rawStr = is_scalar($rawState) ? strtolower(trim((string)$rawState)) : '';
+                $isUnknown = in_array($rawStr, ['unavailable','unknown','none','null','']);
+                if ($isUnknown && in_array($actualVarType, [VARIABLETYPE_BOOLEAN, VARIABLETYPE_INTEGER, VARIABLETYPE_FLOAT], true)) {
+                    $this->SendDebug('ApplyChanges Refresh', 'Ignored state', 0);
+                } else {
+                    switch ($actualVarType) {
+                        case VARIABLETYPE_BOOLEAN:
+                            $value = in_array($rawStr, ['on', 'true', '1', 'home']);
+                            break;
+                        case VARIABLETYPE_INTEGER:
+                            $value = (int)$rawState;
+                            break;
+                        case VARIABLETYPE_FLOAT:
+                            $value = (float)$rawState;
+                            break;
+                        default:
+                            $value = (string)$rawState;
+                            break;
+                    }
+                    $this->SetValue('Status', $value);
                 }
-                $this->SetValue('Status', $value);
-
                 // Ensure presentation is applied on Status
                 $entityDomain = '';
                 if (strpos($entityId, '.') !== false) {
