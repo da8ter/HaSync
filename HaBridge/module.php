@@ -388,11 +388,19 @@ class HaBridge extends IPSModule
         try {
             $varInfo = IPS_GetVariable($statusVarId);
             $value = $payload['state'];
+            $rawStr = is_scalar($value) ? strtolower(trim((string)$value)) : '';
+            $isUnknown = in_array($rawStr, ['unavailable','unknown','none','null','']);
+            
+            if ($isUnknown && in_array($varInfo['VariableType'], [VARIABLETYPE_BOOLEAN, VARIABLETYPE_INTEGER, VARIABLETYPE_FLOAT], true)) {
+                // Ignore unknown/unavailable for numeric/bool to keep last known value
+                $this->SendDebug('UpdateVariableDirect', 'Ignored state ' . (string)$value . ' for numeric/bool variable', 0);
+                return;
+            }
             
             switch ($varInfo['VariableType']) {
                 case VARIABLETYPE_BOOLEAN:
                     $value = is_bool($value) ? $value : 
-                            (strtolower($value) === 'on' || strtolower($value) === 'true');
+                            in_array($rawStr, ['on','true','1','yes','home']);
                     break;
                 case VARIABLETYPE_INTEGER:
                     $value = (int)$value;
@@ -404,6 +412,18 @@ class HaBridge extends IPSModule
                     $value = (string)$value;
                     break;
             }
+
+            // Enforce Value presentation for binary_sensor (no switch)
+            $entityDomain = '';
+            if (isset($payload['entity_id']) && is_string($payload['entity_id'])) {
+                $dot = strpos($payload['entity_id'], '.');
+                if ($dot !== false) {
+                    $entityDomain = substr($payload['entity_id'], 0, $dot);
+                }
+            }
+            if ($varInfo['VariableType'] === VARIABLETYPE_BOOLEAN && $entityDomain === 'binary_sensor') {
+                IPS_SetVariableCustomPresentation($statusVarId, ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']);
+            }
             
             SetValue($statusVarId, $value);
             
@@ -411,6 +431,8 @@ class HaBridge extends IPSModule
             $this->SendDebug('UpdateVariableDirect', 'Error: ' . $e->getMessage(), 0);
         }
     }
+
+    
     
     // Auto-Discovery support removed; no discovery-based device removal.
     
