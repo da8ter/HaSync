@@ -601,20 +601,14 @@ public function ProcessMQTTStateUpdate(string $data): bool
                     $value = (string)$raw;
             }
             $this->SetValue('Status', $value);
-            // Apply binary_sensor device_class presentation if available
+            // Enforce Value presentation for binary_sensor (no switch)
             $entityDomain = '';
             $dot = strpos($entityIdBase, '.');
             if ($dot !== false) {
                 $entityDomain = substr($entityIdBase, 0, $dot);
             }
-            if ($varInfo['VariableType'] === VARIABLETYPE_BOOLEAN
-                && $entityDomain === 'binary_sensor'
-                && isset($payload['attributes']) && is_array($payload['attributes'])
-                && isset($payload['attributes']['device_class'])) {
-                $presentation = $this->CreateBinarySensorPresentationByDeviceClass($payload['attributes']);
-                if (!empty($presentation)) {
-                    IPS_SetVariableCustomPresentation($statusId, $presentation);
-                }
+            if ($varInfo['VariableType'] === VARIABLETYPE_BOOLEAN && $entityDomain === 'binary_sensor') {
+                IPS_SetVariableCustomPresentation($statusId, ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']);
             }
         }
     }
@@ -855,13 +849,8 @@ protected function DetermineVariableType(
             : in_array(strtolower((string)$value), ['on','true','1','home']);
 
         if ($entityDomain === 'binary_sensor' && $isStatusVariable) {
-            // Device-class-spezifische Beschriftungen/Icons
-            $presentation = $this->CreateBinarySensorPresentationByDeviceClass($attributes);
-            if (empty($presentation)) {
-                $presentation = $editable
-                    ? $this->CreateBooleanPresentation($entityDomain, true)
-                    : ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']; // Value (Fallback)
-            }
+            // Binary-Sensoren: nur Wertanzeige (kein Schalter), immer read-only
+            $presentation = ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}'];
         } else {
             $presentation = $editable
                 ? $this->CreateBooleanPresentation($entityDomain, true)
