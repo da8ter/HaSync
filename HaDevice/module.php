@@ -106,7 +106,7 @@ class HaDevice extends IPSModule
             return;
         }
         $myEntity = $this->ReadPropertyString('entity_id');
-        if ($myEntity === '' || strpos($entityId, $myEntity) !== 0) {
+        if ($myEntity === '' || $entityId !== $myEntity) {
             return; // Different entity
         }
         $payload = $data['Payload'] ?? [];
@@ -546,9 +546,9 @@ public function ProcessMQTTStateUpdate(string $data): bool
         return false;                                       // entity_id bleibt Pflicht
     }
 
-    // Akzeptiere entity_id, die **mit** unserer Basis-ID beginnt
+    // Akzeptiere nur exakte entity_id für diese Instanz
     $entityIdBase = $this->ReadPropertyString('entity_id');
-    if (strpos($payload['entity_id'], $entityIdBase) !== 0) {
+    if ($payload['entity_id'] !== $entityIdBase) {
         return false;                                       // fremde Entität → Abbruch
     }
 
@@ -572,23 +572,31 @@ public function ProcessMQTTStateUpdate(string $data): bool
         $statusId = $this->GetIDForIdent('Status');
         $varInfo  = IPS_GetVariable($statusId);
 
-        switch ($varInfo['VariableType']) {
-            case VARIABLETYPE_BOOLEAN:
-                $value = is_bool($payload['state'])
-                    ? $payload['state']
-                    : in_array(strtolower((string)$payload['state']),
-                              ['on','true','1','yes','home']);
-                break;
-            case VARIABLETYPE_INTEGER:
-                $value = (int)$payload['state'];
-                break;
-            case VARIABLETYPE_FLOAT:
-                $value = (float)$payload['state'];
-                break;
-            default:
-                $value = (string)$payload['state'];
+        $raw    = $payload['state'];
+        $rawStr = is_scalar($raw) ? strtolower(trim((string)$raw)) : '';
+        $isUnknown = in_array($rawStr, ['unavailable','unknown','none','null','']);
+
+        // Für numerische/boolesche Variablen: 'unavailable/unknown' ignorieren, um 0/false zu vermeiden
+        if ($isUnknown && in_array($varInfo['VariableType'], [VARIABLETYPE_INTEGER, VARIABLETYPE_FLOAT, VARIABLETYPE_BOOLEAN], true)) {
+            $this->SendDebug('ProcessMQTTStateUpdate', 'Ignored state "' . (string)$raw . '" for numeric/bool variable to keep last value', 0);
+        } else {
+            switch ($varInfo['VariableType']) {
+                case VARIABLETYPE_BOOLEAN:
+                    $value = is_bool($raw)
+                        ? $raw
+                        : in_array($rawStr, ['on','true','1','yes','home']);
+                    break;
+                case VARIABLETYPE_INTEGER:
+                    $value = (int)$raw;
+                    break;
+                case VARIABLETYPE_FLOAT:
+                    $value = (float)$raw;
+                    break;
+                default:
+                    $value = (string)$raw;
+            }
+            $this->SetValue('Status', $value);
         }
-        $this->SetValue('Status', $value);
     }
 
     /* ---------- 1b) Icon-Update bei Attribut 'icon' ---------- */
