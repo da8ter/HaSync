@@ -601,6 +601,21 @@ public function ProcessMQTTStateUpdate(string $data): bool
                     $value = (string)$raw;
             }
             $this->SetValue('Status', $value);
+            // Apply binary_sensor device_class presentation if available
+            $entityDomain = '';
+            $dot = strpos($entityIdBase, '.');
+            if ($dot !== false) {
+                $entityDomain = substr($entityIdBase, 0, $dot);
+            }
+            if ($varInfo['VariableType'] === VARIABLETYPE_BOOLEAN
+                && $entityDomain === 'binary_sensor'
+                && isset($payload['attributes']) && is_array($payload['attributes'])
+                && isset($payload['attributes']['device_class'])) {
+                $presentation = $this->CreateBinarySensorPresentationByDeviceClass($payload['attributes']);
+                if (!empty($presentation)) {
+                    IPS_SetVariableCustomPresentation($statusId, $presentation);
+                }
+            }
         }
     }
 
@@ -839,9 +854,19 @@ protected function DetermineVariableType(
         $convertedValue = is_bool($value) ? $value
             : in_array(strtolower((string)$value), ['on','true','1','home']);
 
-        $presentation = $editable
-            ? $this->CreateBooleanPresentation($entityDomain, true)
-            : ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']; // Value
+        if ($entityDomain === 'binary_sensor' && $isStatusVariable) {
+            // Device-class-spezifische Beschriftungen/Icons
+            $presentation = $this->CreateBinarySensorPresentationByDeviceClass($attributes);
+            if (empty($presentation)) {
+                $presentation = $editable
+                    ? $this->CreateBooleanPresentation($entityDomain, true)
+                    : ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']; // Value (Fallback)
+            }
+        } else {
+            $presentation = $editable
+                ? $this->CreateBooleanPresentation($entityDomain, true)
+                : ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']; // Value
+        }
     }
 
     /* --- input_number / number --- */
@@ -987,6 +1012,62 @@ protected function DetermineVariableType(
         
         $this->SendDebug('Boolean Presentation Created', "Domain: $entityDomain, Editable: " . ($editable ? 'Yes' : 'No') . ', Presentation: ' . json_encode($presentation), 0);
         return $presentation;
+    }
+    
+    /**
+     * Create custom presentation for binary_sensor based on device_class mapping
+     * Uses the provided German captions and a single icon for both states.
+     */
+    protected function CreateBinarySensorPresentationByDeviceClass(array $attributes): array
+    {
+        $deviceClass = isset($attributes['device_class']) ? (string)$attributes['device_class'] : '';
+        if ($deviceClass === '') {
+            return [];
+        }
+        // device_class => [ON Caption, OFF Caption, Icon]
+        $map = [
+            'battery'           => ['Batterie niedrig', 'Batterie ok', 'battery-alert'],
+            'battery_charging'  => ['lädt', 'lädt nicht', 'battery-bolt'],
+            'carbon_monoxide'   => ['CO erkannt', 'kein CO', 'cloud-bolt'],
+            'cold'              => ['kalt', 'normal', 'snowflake'],
+            'connectivity'      => ['verbunden', 'getrennt', 'wifi'],
+            'door'              => ['offen', 'geschlossen', 'door-open'],
+            'garage_door'       => ['offen', 'geschlossen', 'garage-open'],
+            'gas'               => ['Gas erkannt', 'kein Gas', 'cloud-bolt'],
+            'heat'              => ['heiß', 'normal', 'fire'],
+            'light'             => ['Licht erkannt', 'kein Licht', 'lightbulb-on'],
+            'lock'              => ['entsperrt', 'gesperrt', 'lock-open'],
+            'moisture'          => ['nass', 'trocken', 'droplet'],
+            'motion'            => ['Bewegung erkannt', 'keine Bewegung', 'person-running'],
+            'moving'            => ['in Bewegung', 'stillstehend', 'person-running'],
+            'occupancy'         => ['belegt', 'frei', 'house-person-return'],
+            'opening'           => ['offen', 'geschlossen', 'up-right-from-square'],
+            'plug'              => ['eingesteckt', 'ausgesteckt', 'plug'],
+            'power'             => ['Strom erkannt', 'kein Strom', 'bolt'],
+            'presence'          => ['anwesend', 'abwesend', 'user'],
+            'problem'           => ['Problem erkannt', 'kein Problem', 'triangle-exclamation'],
+            'running'           => ['läuft', 'gestoppt', 'play'],
+            'safety'            => ['unsicher/gefährlich', 'sicher', 'shield-exclamation'],
+            'smoke'             => ['Rauch erkannt', 'kein Rauch', 'fire-smoke'],
+            'sound'             => ['Geräusch erkannt', 'kein Geräusch', 'volume-high'],
+            'tamper'            => ['Manipulation erkannt', 'keine Manipulation', 'hand'],
+            'update'            => ['Update verfügbar', 'aktuell', 'arrows-rotate'],
+            'vibration'         => ['Vibration erkannt', 'keine Vibration', 'chart-fft'],
+            'window'            => ['offen', 'geschlossen', 'window-open'],
+        ];
+
+        if (!isset($map[$deviceClass])) {
+            return [];
+        }
+        [$on, $off, $icon] = $map[$deviceClass];
+        return [
+            // VARIABLE_PRESENTATION_SWITCH
+            'PRESENTATION' => '{60AE6B26-B3E2-BDB1-A3A1-BE232940664B}',
+            'CAPTION_ON'   => $on,
+            'CAPTION_OFF'  => $off,
+            'ICON_ON'      => $icon,
+            'ICON_OFF'     => $icon,
+        ];
     }
     
     /**
