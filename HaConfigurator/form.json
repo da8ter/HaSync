@@ -15,7 +15,7 @@
     "actions": [
         {
             "type": "ExpansionPanel",
-            "caption": "Einzel EntitätenGeräte",
+            "caption": "Einzel Entitäten Geräte",
             "expanded": true,
             "items": [
                 {
