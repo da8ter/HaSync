@@ -25,9 +25,5 @@
       "values": []
     }
   ],
-  "actions": [
-    { "type": "Label", "label": "Fügen Sie hier die gewünschten Home Assistant Entity-IDs hinzu. Präsentationen/Icons werden nur bei der ersten Erstellung gesetzt." },
-    { "type": "Button", "caption": "Neu aufbauen", "onClick": "HAMED_Rebuild($id);" }
-  ],
   "status": []
 }
