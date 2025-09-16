@@ -20,6 +20,7 @@ class HaMultiEntityDevice extends IPSModule
         parent::Create();
         $this->RegisterPropertyString('group_name', '');
         $this->RegisterPropertyString('entities', '[]'); // array of { entity_id, alias, role, section }
+        $this->RegisterPropertyBoolean('create_additional_vars', false);
 
         // Attributes
         $this->RegisterAttributeBoolean('Initialized', false);
@@ -50,6 +51,7 @@ class HaMultiEntityDevice extends IPSModule
 
         // Try to fetch current states once (best effort)
         $states = $this->FetchStates(); // entity_id => [state, attributes]
+        $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
 
         foreach ($entities as $e) {
             $entityId = (string)($e['entity_id'] ?? '');
@@ -148,6 +150,11 @@ class HaMultiEntityDevice extends IPSModule
             if ($editable && in_array($entityDomain, ['input_number', 'number', 'light', 'switch', 'input_boolean', 'lock'])) {
                 $this->EnableAction($ident);
             }
+
+            // Optionally create additional attribute variables for this entity
+            if ($createExtra && is_array($attributes) && !empty($attributes)) {
+                $this->ProcessAttributesForEntity($entityId, $attributes);
+            }
         }
 
         $this->WriteAttributeString('EntityIndex', json_encode($index));
@@ -158,6 +165,11 @@ class HaMultiEntityDevice extends IPSModule
             'DataID' => '{B5C8F9A1-2D3E-4F50-8A6B-1C2D3E4F5A6B}',
             'Action' => 'UpdateSubscriptions'
         ]));
+
+        // If user has disabled additional variables, ensure we remove any previously created ones
+        if (!$createExtra) {
+            $this->CleanupAdditionalVariables();
+        }
     }
 
     public function ReceiveData($JSONString)
@@ -323,8 +335,105 @@ class HaMultiEntityDevice extends IPSModule
                 @$this->DisableAction($ident);
             }
         }
-    }
 
+        // Update or create additional attribute variables for this entity if enabled
+        $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
+        if ($createExtra && isset($payload['attributes']) && is_array($payload['attributes']) && !empty($payload['attributes'])) {
+            $this->ProcessAttributesForEntity($entityId, $payload['attributes']);
+        }
+    }
+}
+
+/**
+ * Create or update additional attribute variables for a given entity.
+ * Variables are hidden and use idents in the form HAS_<entityIdent>_<attrKey>
+ */
+protected function ProcessAttributesForEntity(string $entityId, array $attributes): void
+{
+    // Keys to skip (metadata and slider config)
+    $skip = ['friendly_name','editable','initial','max','min','mode','step','unit_of_measurement'];
+    $entityIdent = $this->BuildIdentForEntity($entityId); // e.g. STAT_sensor_xxx
+    foreach ($attributes as $key => $value) {
+        if (in_array($key, $skip, true)) {
+            continue;
+        }
+        $sanKey = preg_replace('/[^A-Za-z0-9_]/', '_', (string)$key);
+        $ident = 'HAS_' . $entityIdent . '_' . $sanKey;
+
+        $profile = '';
+        $varType = VARIABLETYPE_STRING;
+
+        if (is_bool($value)) {
+            $varType = VARIABLETYPE_BOOLEAN;
+            $profile = '~Switch';
+        } elseif (is_int($value)) {
+            $varType = VARIABLETYPE_INTEGER;
+        } elseif (is_float($value)) {
+            $varType = VARIABLETYPE_FLOAT;
+            // Simple numeric profile hints
+            if (stripos($key, 'temp') !== false) {
+                $profile = '~Temperature';
+            } elseif (stripos($key, 'humid') !== false) {
+                $profile = '~Humidity';
+            } elseif (stripos($key, 'bright') !== false) {
+                $profile = '~Intensity.255';
+            }
+        }
+
+        // Create or maintain
+        $this->MaintainVariable($ident, (string)$key, $varType, $profile, 0, true);
+        $varId = $this->GetIDForIdent($ident);
+        if ($varId !== false) {
+            @IPS_SetHidden($varId, true);
+        }
+
+        // Set value by type
+        switch ($varType) {
+            case VARIABLETYPE_BOOLEAN:
+                $boolValue = $value;
+                if (is_string($value)) {
+                    $boolValue = in_array(strtolower((string)$value), ['true','on','1','yes'], true);
+                }
+                $this->SetValue($ident, (bool)$boolValue);
+                break;
+            case VARIABLETYPE_INTEGER:
+                $this->SetValue($ident, (int)$value);
+                break;
+            case VARIABLETYPE_FLOAT:
+                $this->SetValue($ident, (float)$value);
+                break;
+            case VARIABLETYPE_STRING:
+            default:
+                $this->SetValue($ident, is_scalar($value) ? (string)$value : json_encode($value));
+                break;
+        }
+    }
+}
+
+/**
+ * Remove all HAS_* variables created for attributes (across all entities)
+ */
+protected function CleanupAdditionalVariables(): void
+{
+    try {
+        $children = @IPS_GetChildrenIDs($this->InstanceID);
+        if (!is_array($children)) {
+            return;
+        }
+        foreach ($children as $id) {
+            $obj = @IPS_GetObject($id);
+            if (!is_array($obj) || ($obj['ObjectType'] ?? 0) !== 2 /* otVariable */) {
+                continue;
+            }
+            $ident = $obj['ObjectIdent'] ?? '';
+            if (is_string($ident) && strpos($ident, 'HAS_') === 0) {
+                @IPS_DeleteVariable($id);
+            }
+        }
+    } catch (Exception $e) {
+        // ignore
+    }
+}
     protected function DetermineVariableType(
         string $attributeName,
         $value,

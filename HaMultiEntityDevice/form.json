@@ -1,6 +1,7 @@
 {
   "elements": [
     { "type": "ValidationTextBox", "name": "group_name", "caption": "Gruppenname" },
+    { "type": "CheckBox", "name": "create_additional_vars", "caption": "Zusätzliche Attribut-Variablen erstellen" },
     {
       "type": "List",
       "name": "entities",
