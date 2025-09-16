@@ -14,7 +14,6 @@ class HaBridge extends IPSModule
     public function Create()
     {
         parent::Create();
-        
         // MQTT Server connection
         $this->ConnectParent('{C6D2AEB3-6E1F-4B2E-8E69-3A1A00246850}');
         
@@ -420,7 +419,20 @@ class HaBridge extends IPSModule
                 }
             }
             if ($varInfo['VariableType'] === VARIABLETYPE_BOOLEAN && $entityDomain === 'binary_sensor') {
-                IPS_SetVariableCustomPresentation($statusVarId, ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']);
+                $deviceClass = '';
+                if (isset($payload['attributes']) && is_array($payload['attributes']) && isset($payload['attributes']['device_class'])) {
+                    $deviceClass = (string)$payload['attributes']['device_class'];
+                }
+                $presentation = $this->CreateBinarySensorValuePresentationByDeviceClass($deviceClass);
+                if (!empty($presentation)) {
+                    IPS_SetVariableCustomPresentation($statusVarId, $presentation);
+                    if (isset($presentation['ICON'])) {
+                        IPS_SetIcon($statusVarId, (string)$presentation['ICON']);
+                    }
+                } else {
+                    // Fallback: Value presentation only
+                    IPS_SetVariableCustomPresentation($statusVarId, ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']);
+                }
             }
             
             SetValue($statusVarId, $value);
