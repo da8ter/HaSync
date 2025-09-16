@@ -21,6 +21,7 @@ class HaConfigurator extends IPSModule
         // Multi-Entity wizard inputs
         $this->RegisterPropertyString('multi_group_name', '');
         $this->RegisterPropertyString('multi_entity_ids', ''); // newline or comma separated list of entity_ids
+        $this->RegisterPropertyInteger('target_category', 0);
         
         // Real-time options
         $this->RegisterPropertyBoolean('use_realtime', false);
@@ -359,6 +360,7 @@ class HaConfigurator extends IPSModule
             'items' => [
                 [ 'type' => 'ValidationTextBox', 'name' => 'multi_group_name', 'caption' => 'Gruppenname' ],
                 [ 'type' => 'ValidationTextBox', 'name' => 'multi_entity_ids', 'caption' => 'Entity IDs (kommagetrennt oder je Zeile)' ],
+                [ 'type' => 'SelectObject', 'name' => 'target_category', 'caption' => 'Zielkategorie' ],
                 [
                     'type' => 'List',
                     'name' => 'multi_select_entities',
@@ -374,8 +376,8 @@ class HaConfigurator extends IPSModule
                     ],
                     'values' => $selectRows
                 ],
-                [ 'type' => 'Button', 'caption' => 'Aus Auswahl erstellen', 'onClick' => ' $sel=[]; foreach ($multi_select_entities as $row) { if (isset($row["select"]) && $row["select"]) { $sel[] = $row["entity_id"]; } } HACO_CreateMultiEntityDeviceFromSelection($id, json_encode($sel), $multi_group_name);' ],
-                [ 'type' => 'Button', 'caption' => 'Aus Eingabefeld erstellen', 'onClick' => 'HACO_CreateMultiEntityDevice($id);' ]
+                [ 'type' => 'Button', 'caption' => 'Aus Auswahl erstellen', 'onClick' => ' $sel=[]; foreach ($multi_select_entities as $row) { if (isset($row["select"]) && $row["select"]) { $sel[] = $row["entity_id"]; } } HACO_CreateMultiEntityDeviceFromSelection($id, json_encode($sel), $multi_group_name, $target_category);' ],
+                [ 'type' => 'Button', 'caption' => 'Aus Eingabefeld erstellen', 'onClick' => 'HACO_CreateMultiEntityDevice($id, $target_category);' ]
             ]
         ];
 
@@ -385,7 +387,7 @@ class HaConfigurator extends IPSModule
     /**
      * Create a HaMultiEntityDevice instance from the provided group name and entity IDs
      */
-    public function CreateMultiEntityDevice()
+    public function CreateMultiEntityDevice(int $categoryId = 0)
     {
         $group = trim($this->ReadPropertyString('multi_group_name'));
         $idsRaw = trim($this->ReadPropertyString('multi_entity_ids'));
@@ -439,11 +441,16 @@ class HaConfigurator extends IPSModule
         if ($group !== '') {
             @IPS_SetName($instID, $group);
         }
-        // Parent under HaBridge if available
-        $bridgeModuleID = '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}';
-        $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
-        if (is_array($bridges) && !empty($bridges)) {
-            @IPS_SetParent($instID, (int)$bridges[0]);
+        // Decide parent: target category if provided/selected; otherwise under HaBridge
+        $targetCat = $categoryId > 0 ? $categoryId : (int)$this->ReadPropertyInteger('target_category');
+        if ($targetCat > 0 && @IPS_ObjectExists($targetCat)) {
+            @IPS_SetParent($instID, $targetCat);
+        } else {
+            $bridgeModuleID = '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}';
+            $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
+            if (is_array($bridges) && !empty($bridges)) {
+                @IPS_SetParent($instID, (int)$bridges[0]);
+            }
         }
         @IPS_SetProperty($instID, 'group_name', $group);
         @IPS_SetProperty($instID, 'entities', json_encode($entities));
@@ -459,7 +466,7 @@ class HaConfigurator extends IPSModule
     /**
      * Create a HaMultiEntityDevice instance from the selection list
      */
-    public function CreateMultiEntityDeviceFromSelection(string $idsJSON, string $groupName = '')
+    public function CreateMultiEntityDeviceFromSelection(string $idsJSON, string $groupName = '', int $categoryId = 0)
     {
         $ids = json_decode($idsJSON, true);
         if (!is_array($ids) || empty($ids)) {
