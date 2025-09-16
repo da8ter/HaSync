@@ -129,18 +129,9 @@ class HaMultiEntityDevice extends IPSModule
                     // For Value presentation, also remove SUFFIX/DIGITS if present
                     if (isset($presForIPS['PRESENTATION']) && $presForIPS['PRESENTATION'] === '{3319437D-7CDE-699D-750A-3C6A3841FA75}') {
                         unset($presForIPS['SUFFIX'], $presForIPS['DIGITS']);
-                        // Clean OPTIONS array - only keep Value and Caption
+                        // Convert OPTIONS to JSON string format as expected by IPS
                         if (isset($presForIPS['OPTIONS']) && is_array($presForIPS['OPTIONS'])) {
-                            $cleanOptions = [];
-                            foreach ($presForIPS['OPTIONS'] as $opt) {
-                                if (is_array($opt)) {
-                                    $cleanOptions[] = [
-                                        'Value' => $opt['Value'] ?? false,
-                                        'Caption' => $opt['Caption'] ?? ''
-                                    ];
-                                }
-                            }
-                            $presForIPS['OPTIONS'] = $cleanOptions;
+                            $presForIPS['OPTIONS'] = json_encode($presForIPS['OPTIONS']);
                         }
                     }
                     IPS_SetVariableCustomPresentation($varId, $presForIPS);
@@ -370,18 +361,9 @@ class HaMultiEntityDevice extends IPSModule
                 // For Value presentation, also remove SUFFIX/DIGITS if present
                 if (isset($presForIPS['PRESENTATION']) && $presForIPS['PRESENTATION'] === '{3319437D-7CDE-699D-750A-3C6A3841FA75}') {
                     unset($presForIPS['SUFFIX'], $presForIPS['DIGITS']);
-                    // Clean OPTIONS array - only keep Value and Caption
+                    // Convert OPTIONS to JSON string format as expected by IPS
                     if (isset($presForIPS['OPTIONS']) && is_array($presForIPS['OPTIONS'])) {
-                        $cleanOptions = [];
-                        foreach ($presForIPS['OPTIONS'] as $opt) {
-                            if (is_array($opt)) {
-                                $cleanOptions[] = [
-                                    'Value' => $opt['Value'] ?? false,
-                                    'Caption' => $opt['Caption'] ?? ''
-                                ];
-                            }
-                        }
-                        $presForIPS['OPTIONS'] = $cleanOptions;
+                        $presForIPS['OPTIONS'] = json_encode($presForIPS['OPTIONS']);
                     }
                 }
                 IPS_SetVariableCustomPresentation($varId, $presForIPS);
