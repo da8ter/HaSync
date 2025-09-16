@@ -486,7 +486,7 @@ class HaBridge extends IPSModule
             return [];
         }
         [$trueCaption, $falseCaption, $icon] = $map[$deviceClass];
-        $options = json_encode([
+        $options = [
             [
                 'Value' => false,
                 'Caption' => $falseCaption,
@@ -503,7 +503,7 @@ class HaBridge extends IPSModule
                 'ColorActive' => false,
                 'ColorValue' => -1
             ]
-        ]);
+        ];
         return [
             'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
             'OPTIONS'      => $options,
