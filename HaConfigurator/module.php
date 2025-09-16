@@ -505,7 +505,17 @@ class HaConfigurator extends IPSModule
         if ($group !== '') {
             @IPS_SetName($instID, $group);
         }
-        @IPS_SetParent($instID, $this->InstanceID);
+        // Decide parent: target category if provided/selected; otherwise under HaBridge
+        $targetCat = $categoryId > 0 ? $categoryId : (int)$this->ReadPropertyInteger('target_category');
+        if ($targetCat > 0 && @IPS_ObjectExists($targetCat)) {
+            @IPS_SetParent($instID, $targetCat);
+        } else {
+            $bridgeModuleID = '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}';
+            $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
+            if (is_array($bridges) && !empty($bridges)) {
+                @IPS_SetParent($instID, (int)$bridges[0]);
+            }
+        }
         @IPS_SetProperty($instID, 'group_name', $group);
         @IPS_SetProperty($instID, 'entities', json_encode($entities));
         @IPS_ApplyChanges($instID);

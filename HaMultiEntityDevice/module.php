@@ -89,8 +89,27 @@ class HaMultiEntityDevice extends IPSModule
                         $isIncomplete = true;
                     }
                 }
+                // Migrate away from SWITCH presentation for binary_sensor
+                if ($entityDomain === 'binary_sensor' && $hasCustom && isset($custom['PRESENTATION']) && $custom['PRESENTATION'] === '{60AE6B26-B3E2-BDB1-A3A1-BE232940664B}') {
+                    $isIncomplete = true;
+                }
                 if (!$hasCustom || $isIncomplete) {
+                    // If binary_sensor has no device_class mapping, fall back to An/Aus options
+                    if ($entityDomain === 'binary_sensor' && (empty($presentation) || !isset($presentation['OPTIONS']))) {
+                        $this->SendDebug('ApplyChanges', 'Binary sensor without device_class -> using generic An/Aus options', 0);
+                        $presentation = [
+                            'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
+                            'OPTIONS' => [
+                                [ 'Value' => false, 'Caption' => 'Aus', 'IconActive' => false, 'IconValue' => '', 'ColorActive' => false, 'ColorValue' => -1 ],
+                                [ 'Value' => true,  'Caption' => 'An',  'IconActive' => false, 'IconValue' => '', 'ColorActive' => false, 'ColorValue' => -1 ]
+                            ]
+                        ];
+                    }
+                    $this->SendDebug('ApplyChanges', 'Setting presentation for ' . $entityId . ' (' . $entityDomain . '): ' . json_encode($presentation), 0);
                     IPS_SetVariableCustomPresentation($varId, $presentation);
+                    if ($entityDomain === 'binary_sensor') {
+                        @$this->DisableAction($ident);
+                    }
                 }
             } else {
                 $this->MaintainVariable($ident, $name, $varType, $profile, 0, true);
