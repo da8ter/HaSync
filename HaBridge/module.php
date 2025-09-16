@@ -241,18 +241,8 @@ class HaBridge extends IPSModule
      */
     protected function IsStateTopic($topic): bool
     {
-        if (strpos($topic, '/state') !== false) {
-            return true;
-        }
-        
-        $stateRelevantTypes = ['/attributes'];
-        foreach ($stateRelevantTypes as $type) {
-            if (strpos($topic, $type) !== false) {
-                return true;
-            }
-        }
-        
-        return false;
+        // Only accept topics that end exactly with '/state'
+        return (bool)preg_match('#/state$#', (string)$topic);
     }
     
     // Auto-Discovery support removed; discovery messages are no longer processed.
@@ -295,7 +285,7 @@ class HaBridge extends IPSModule
      */
     protected function ExtractEntityIdFromStateTopic($topic): ?string
     {
-        if (preg_match('/homeassistant\/([^\/]+)\/([^\/]+)\/state/', $topic, $matches)) {
+        if (preg_match('#homeassistant/([^/]+)/([^/]+)/state$#', (string)$topic, $matches)) {
             return $matches[1] . '.' . $matches[2];
         }
         return null;
@@ -403,9 +393,17 @@ class HaBridge extends IPSModule
                             in_array($rawStr, ['on','true','1','yes','home']);
                     break;
                 case VARIABLETYPE_INTEGER:
+                    if (!is_numeric($value)) {
+                        $this->SendDebug('UpdateVariableDirect', 'Ignored non-numeric state for INTEGER variable: ' . (string)$value, 0);
+                        return;
+                    }
                     $value = (int)$value;
                     break;
                 case VARIABLETYPE_FLOAT:
+                    if (!is_numeric($value)) {
+                        $this->SendDebug('UpdateVariableDirect', 'Ignored non-numeric state for FLOAT variable: ' . (string)$value, 0);
+                        return;
+                    }
                     $value = (float)$value;
                     break;
                 default:
