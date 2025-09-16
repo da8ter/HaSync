@@ -1080,8 +1080,22 @@ protected function DetermineVariableType(
         }
         [$trueCaption, $falseCaption, $icon] = $map[$deviceClass];
         $options = json_encode([
-            ['Value' => false, 'Caption' => $falseCaption],
-            ['Value' => true,  'Caption' => $trueCaption]
+            [
+                'Value' => false,
+                'Caption' => $falseCaption,
+                'IconActive' => false,
+                'IconValue' => '',
+                'ColorActive' => false,
+                'ColorValue' => -1
+            ],
+            [
+                'Value' => true,
+                'Caption' => $trueCaption,
+                'IconActive' => false,
+                'IconValue' => '',
+                'ColorActive' => false,
+                'ColorValue' => -1
+            ]
         ]);
         return [
             'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}', // Value
