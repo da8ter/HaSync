@@ -107,6 +107,12 @@ class HaMultiEntityDevice extends IPSModule
                     }
                     $this->SendDebug('ApplyChanges', 'Setting presentation for ' . $entityId . ' (' . $entityDomain . '): ' . json_encode($presentation), 0);
                     IPS_SetVariableCustomPresentation($varId, $presentation);
+                    // Set icon right away if presentation suggests one and none is set yet
+                    $objSet = @IPS_GetObject($varId);
+                    $currentIconSet = is_array($objSet) ? ($objSet['ObjectIcon'] ?? '') : '';
+                    if ($currentIconSet === '' && isset($presentation['ICON']) && is_string($presentation['ICON']) && $presentation['ICON'] !== '') {
+                        @IPS_SetIcon($varId, (string)$presentation['ICON']);
+                    }
                     if ($entityDomain === 'binary_sensor') {
                         @$this->DisableAction($ident);
                     }
@@ -428,6 +434,7 @@ class HaMultiEntityDevice extends IPSModule
     protected function CreateBinarySensorPresentationByDeviceClass(array $attributes): array
     {
         $deviceClass = isset($attributes['device_class']) ? (string)$attributes['device_class'] : '';
+        $this->SendDebug('BinarySensor', 'device_class=' . ($deviceClass !== '' ? $deviceClass : '(none)'), 0);
         if ($deviceClass === '') {
             return [];
         }
@@ -512,6 +519,12 @@ class HaMultiEntityDevice extends IPSModule
 
     protected function MapHAIconToSymcon(string $haIcon): string
     {
+        // 1) Try mapping from assets/ha_icons.json (cached)
+        $map = $this->LoadIconMapping();
+        if (isset($map[$haIcon]) && is_string($map[$haIcon])) {
+            return $map[$haIcon];
+        }
+        // 2) Legacy fallback mapping for common icons
         $legacy = [
             'mdi:lightbulb' => 'Bulb',
             'mdi:lightbulb-outline' => 'Bulb',
@@ -528,6 +541,38 @@ class HaMultiEntityDevice extends IPSModule
             'mdi:shield-check' => 'Shield'
         ];
         return $legacy[$haIcon] ?? '';
+    }
+
+    protected function LoadIconMapping(): array
+    {
+        static $cache = null;
+        if ($cache !== null) {
+            return $cache;
+        }
+        $file = __DIR__ . '/assets/ha_icons.json';
+        if (!file_exists($file)) {
+            $this->SendDebug('IconMap', 'assets/ha_icons.json not found', 0);
+            $cache = [];
+            return $cache;
+        }
+        $json = @file_get_contents($file);
+        if ($json === false) {
+            $this->SendDebug('IconMap', 'Failed to read ha_icons.json', 0);
+            $cache = [];
+            return $cache;
+        }
+        $json = trim($json);
+        if (substr($json, -1) === '.') {
+            $json = substr($json, 0, -1);
+        }
+        $data = json_decode($json, true);
+        if (!is_array($data)) {
+            $this->SendDebug('IconMap', 'Invalid JSON in ha_icons.json', 0);
+            $cache = [];
+            return $cache;
+        }
+        $cache = $data;
+        return $cache;
     }
 
     /* --------- Helpers --------- */
