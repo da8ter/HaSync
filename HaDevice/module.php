@@ -186,17 +186,7 @@ class HaDevice extends IPSModule
                     }
                     $this->SetValue('Status', $value);
                 }
-                // Ensure presentation is applied on Status
-                $entityDomain = '';
-                if (strpos($entityId, '.') !== false) {
-                    $entityDomain = substr($entityId, 0, strpos($entityId, '.'));
-                }
-                $attributes = $device['attributes'] ?? [];
-                $det = $this->DetermineVariableType('status', $device['state'] ?? '', $entityDomain, $attributes, true);
-                $presentation = $det[4] ?? [];
-                if (!empty($presentation)) {
-                    IPS_SetVariableCustomPresentation($statusId, $presentation);
-                }
+                // Do NOT re-apply presentation here. Respect user changes after initial creation.
             }
             // If additional variables are disabled, ensure we remove any existing HAS_ variables
             if (!$createExtra) {
@@ -262,7 +252,14 @@ class HaDevice extends IPSModule
             // Use modern variable presentation instead of classic profiles
             $this->MaintainVariable('Status', 'Status', $varType, '', 0, true);
             $varId = $this->GetIDForIdent('Status');
-            IPS_SetVariableCustomPresentation($varId, $presentation);
+            // Only set presentation if there is no custom presentation yet
+            $varMeta = IPS_GetVariable($varId);
+            $hasCustom = isset($varMeta['VariableCustomPresentation'])
+                && is_array($varMeta['VariableCustomPresentation'])
+                && !empty($varMeta['VariableCustomPresentation']);
+            if (!$hasCustom) {
+                IPS_SetVariableCustomPresentation($varId, $presentation);
+            }
         } else {
             $this->MaintainVariable('Status', 'Status', $varType, $profile, 0, true);
         }
@@ -279,14 +276,22 @@ class HaDevice extends IPSModule
             $mappedIcon = $this->MapHAIconToSymcon($device['attributes']['icon']);
             if ($mappedIcon !== '') {
                 $stateVarId = $this->GetIDForIdent('Status');
-                IPS_SetIcon($stateVarId, $mappedIcon);
+                $obj = IPS_GetObject($stateVarId);
+                $currentIcon = $obj['ObjectIcon'] ?? '';
+                if ($currentIcon === '') {
+                    IPS_SetIcon($stateVarId, $mappedIcon);
+                }
             }
         } elseif ($entityDomain === 'binary_sensor') {
             // 2) For binary_sensor: map device_class to an icon
             $presentation = $this->CreateBinarySensorPresentationByDeviceClass($attributes);
             if (!empty($presentation) && isset($presentation['ICON'])) {
                 $stateVarId = $this->GetIDForIdent('Status');
-                IPS_SetIcon($stateVarId, (string)$presentation['ICON']);
+                $obj = IPS_GetObject($stateVarId);
+                $currentIcon = $obj['ObjectIcon'] ?? '';
+                if ($currentIcon === '') {
+                    IPS_SetIcon($stateVarId, (string)$presentation['ICON']);
+                }
             }
         }
         
@@ -311,7 +316,13 @@ class HaDevice extends IPSModule
                     // Use modern variable presentation for numeric attributes
                     $this->MaintainVariable($ident, $key, VARIABLETYPE_FLOAT, '', 0, true);
                     $varId = $this->GetIDForIdent($ident);
-                    IPS_SetVariableCustomPresentation($varId, $presentation);
+                    $varMeta = IPS_GetVariable($varId);
+                    $hasCustom = isset($varMeta['VariableCustomPresentation'])
+                        && is_array($varMeta['VariableCustomPresentation'])
+                        && !empty($varMeta['VariableCustomPresentation']);
+                    if (!$hasCustom) {
+                        IPS_SetVariableCustomPresentation($varId, $presentation);
+                    }
                 } else {
                     $this->MaintainVariable($ident, $key, $varType, $profile, 0, true);
                 }
@@ -630,12 +641,23 @@ public function ProcessMQTTStateUpdate(string $data): bool
                     $entityDomain = substr($entityIdBase, 0, $dot);
                 }
                 if ($entityDomain === 'binary_sensor') {
-                    $presentation = $this->CreateBinarySensorPresentationByDeviceClass($payload['attributes'] ?? []);
-                    if (!empty($presentation)) {
-                        IPS_SetVariableCustomPresentation($statusId, $presentation);
-                        // Also set variable icon as fallback for clients not reading presentation icon
-                        if (isset($presentation['ICON'])) {
-                            IPS_SetIcon($statusId, (string)$presentation['ICON']);
+                    // Apply presentation only if none exists yet (respect user's changes)
+                    $varMeta = IPS_GetVariable($statusId);
+                    $hasCustom = isset($varMeta['VariableCustomPresentation'])
+                        && is_array($varMeta['VariableCustomPresentation'])
+                        && !empty($varMeta['VariableCustomPresentation']);
+                    if (!$hasCustom) {
+                        $presentation = $this->CreateBinarySensorPresentationByDeviceClass($payload['attributes'] ?? []);
+                        if (!empty($presentation)) {
+                            IPS_SetVariableCustomPresentation($statusId, $presentation);
+                            // Also set icon only if none is set yet
+                            if (isset($presentation['ICON'])) {
+                                $obj = IPS_GetObject($statusId);
+                                $currentIcon = $obj['ObjectIcon'] ?? '';
+                                if ($currentIcon === '') {
+                                    IPS_SetIcon($statusId, (string)$presentation['ICON']);
+                                }
+                            }
                         }
                     }
                 }
@@ -647,8 +669,13 @@ public function ProcessMQTTStateUpdate(string $data): bool
     $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
     if ($createExtra && isset($payload['attributes']) && is_array($payload['attributes']) && isset($payload['attributes']['icon'])) {
         $iconName = $this->MapHAIconToSymcon((string)$payload['attributes']['icon']);
-        if ($iconName !== '' && $this->GetIDForIdent('Status') !== false) {
-            IPS_SetIcon($this->GetIDForIdent('Status'), $iconName);
+        $statusVarId = $this->GetIDForIdent('Status');
+        if ($iconName !== '' && $statusVarId !== false) {
+            $obj = IPS_GetObject($statusVarId);
+            $currentIcon = $obj['ObjectIcon'] ?? '';
+            if ($currentIcon === '') {
+                IPS_SetIcon($statusVarId, $iconName);
+            }
         }
     }
 
