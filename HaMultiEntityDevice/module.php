@@ -342,12 +342,18 @@ class HaMultiEntityDevice extends IPSModule
             $this->ProcessAttributesForEntity($entityId, $payload['attributes']);
         }
     }
-}
 
-/**
- * Create or update additional attribute variables for a given entity.
- * Variables are hidden and use idents in the form HAS_<entityIdent>_<attrKey>
- */
+    /**
+     * Create or update additional attribute variables for a given entity.
+     * Variables are hidden and use idents in the form HAS_<entityIdent>_<attrKey>
+     */
+    protected function ProcessAttributesForEntity(string $entityId, array $attributes): void
+    {
+        // Keys to skip (metadata and slider config)
+        $skip = ['friendly_name','editable','initial','max','min','mode','step','unit_of_measurement'];
+        $entityIdent = $this->BuildIdentForEntity($entityId); // e.g. STAT_sensor_xxx
+        foreach ($attributes as $key => $value) {
+            if (in_array($key, $skip, true)) {
 protected function ProcessAttributesForEntity(string $entityId, array $attributes): void
 {
     // Keys to skip (metadata and slider config)
