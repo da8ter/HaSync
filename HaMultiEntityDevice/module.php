@@ -111,7 +111,7 @@ class HaMultiEntityDevice extends IPSModule
                 }
             }
 
-            if ($editable && in_array($entityDomain, ['input_number', 'light', 'switch', 'input_boolean'])) {
+            if ($editable && in_array($entityDomain, ['input_number', 'number', 'light', 'switch', 'input_boolean', 'lock'])) {
                 $this->EnableAction($ident);
             }
         }
@@ -181,6 +181,9 @@ class HaMultiEntityDevice extends IPSModule
             case 'switch':
             case 'input_boolean':
                 $service = $value ? $domain . '/turn_on' : $domain . '/turn_off';
+                break;
+            case 'lock':
+                $service = $value ? 'lock/lock' : 'lock/unlock';
                 break;
             default:
                 // Not controllable – just set local value
@@ -291,9 +294,9 @@ class HaMultiEntityDevice extends IPSModule
             return [$varType, $convertedValue, $profile, false, $presentation];
         }
 
-        if (in_array($entityDomain, ['switch','binary_sensor','input_boolean','automation','light','device_tracker'], true)) {
+        if (in_array($entityDomain, ['switch','binary_sensor','input_boolean','automation','light','device_tracker','lock'], true)) {
             $varType = VARIABLETYPE_BOOLEAN;
-            $editable = in_array($entityDomain, ['switch','input_boolean','light'], true);
+            $editable = in_array($entityDomain, ['switch','input_boolean','light','lock'], true);
             $convertedValue = is_bool($value) ? $value : in_array(strtolower((string)$value), ['on','true','1','home'], true);
             if ($entityDomain === 'binary_sensor' && $isStatusVariable) {
                 $presentation = $this->CreateBinarySensorPresentationByDeviceClass($attributes);
