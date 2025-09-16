@@ -9,17 +9,8 @@
       "add": true,
       "delete": true,
       "columns": [
-        { "name": "entity_id", "caption": "Entity ID", "width": "30%", "add": "", "edit": { "type": "ValidationTextBox" } },
-        { "name": "alias", "caption": "Alias", "width": "30%", "add": "", "edit": { "type": "ValidationTextBox" } },
-        { "name": "role", "caption": "Rolle", "width": "15%", "add": "", "edit": { "type": "Select", "options": [
-          {"caption": "primary", "value": "primary"},
-          {"caption": "control", "value": "control"},
-          {"caption": "sensor", "value": "sensor"},
-          {"caption": "battery", "value": "battery"},
-          {"caption": "door", "value": "door"},
-          {"caption": "other", "value": "other"}
-        ] } },
-        { "name": "section", "caption": "Bereich", "width": "15%", "add": "", "edit": { "type": "ValidationTextBox" } }
+        { "name": "entity_id", "caption": "Entity ID", "width": "50%", "add": "", "edit": { "type": "ValidationTextBox" } },
+        { "name": "alias", "caption": "Alias", "width": "50%", "add": "", "edit": { "type": "ValidationTextBox" } }
       ],
       "values": []
     }
