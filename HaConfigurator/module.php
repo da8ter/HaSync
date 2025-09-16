@@ -280,9 +280,9 @@ class HaConfigurator extends IPSModule
                 'add' => true,
                 'delete' => true,
                 'columns' => [
-                    [ 'label' => 'Entity ID', 'name' => 'entity_id', 'width' => '200px' ],
+                    [ 'label' => 'Entity ID', 'name' => 'entity_id', 'width' => '30%' ],
                     [ 'label' => 'Name', 'name' => 'friendly_name', 'width' => 'auto' ],
-                    [ 'label' => 'State', 'name' => 'state', 'width' => '100px' ]
+                    [ 'label' => 'State', 'name' => 'state', 'width' => 'auto' ]
                 ],
                 'values' => []
             ];
@@ -407,10 +407,10 @@ class HaConfigurator extends IPSModule
                     'add' => false,
                     'delete' => false,
                     'columns' => [
-                        [ 'name' => 'select', 'caption' => '', 'width' => '10px', 'edit' => [ 'type' => 'CheckBox' ] ],
-                        [ 'name' => 'entity_id', 'caption' => 'Entity ID', 'width' => '30%' ],
-                        [ 'name' => 'friendly_name', 'caption' => 'Name', 'width' => '30%' ],
-                        [ 'name' => 'domain', 'caption' => 'Domain', 'width' => '20%' ]
+                        [ 'name' => 'select', 'caption' => '', 'width' => '30px', 'edit' => [ 'type' => 'CheckBox' ] ],
+                        [ 'name' => 'entity_id', 'caption' => 'Entity ID', 'width' => 'auto' ],
+                        [ 'name' => 'friendly_name', 'caption' => 'Name', 'width' => 'auto' ],
+                        [ 'name' => 'domain', 'caption' => 'Domain', 'width' => 'auto' ]
                     ],
                     'values' => $selectRows
                 ],
