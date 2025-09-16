@@ -273,12 +273,20 @@ class HaDevice extends IPSModule
             $this->EnableAction('Status');
         }
         
-        // Set icon on Status variable if available (only when additional vars are enabled)
-        if ($createExtra && isset($device['attributes']['icon'])) {
+        // Set icon on Status variable
+        // 1) Prefer explicit HA icon attribute when present
+        if (isset($device['attributes']['icon'])) {
             $mappedIcon = $this->MapHAIconToSymcon($device['attributes']['icon']);
             if ($mappedIcon !== '') {
                 $stateVarId = $this->GetIDForIdent('Status');
                 IPS_SetIcon($stateVarId, $mappedIcon);
+            }
+        } elseif ($entityDomain === 'binary_sensor') {
+            // 2) For binary_sensor: map device_class to an icon
+            $presentation = $this->CreateBinarySensorPresentationByDeviceClass($attributes);
+            if (!empty($presentation) && isset($presentation['ICON'])) {
+                $stateVarId = $this->GetIDForIdent('Status');
+                IPS_SetIcon($stateVarId, (string)$presentation['ICON']);
             }
         }
         
@@ -615,14 +623,21 @@ public function ProcessMQTTStateUpdate(string $data): bool
             }
             if (!$skipStateSet) {
                 $this->SetValue('Status', $value);
-                // Enforce Value presentation for binary_sensor (no switch)
+                // Apply Value presentation with OPTIONS for binary_sensor (no switch)
                 $entityDomain = '';
                 $dot = strpos($entityIdBase, '.');
                 if ($dot !== false) {
                     $entityDomain = substr($entityIdBase, 0, $dot);
                 }
-                if ($varInfo['VariableType'] === VARIABLETYPE_BOOLEAN && $entityDomain === 'binary_sensor') {
-                    IPS_SetVariableCustomPresentation($statusId, ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']);
+                if ($entityDomain === 'binary_sensor') {
+                    $presentation = $this->CreateBinarySensorPresentationByDeviceClass($payload['attributes'] ?? []);
+                    if (!empty($presentation)) {
+                        IPS_SetVariableCustomPresentation($statusId, $presentation);
+                        // Also set variable icon as fallback for clients not reading presentation icon
+                        if (isset($presentation['ICON'])) {
+                            IPS_SetIcon($statusId, (string)$presentation['ICON']);
+                        }
+                    }
                 }
             }
         }
@@ -864,8 +879,8 @@ protected function DetermineVariableType(
             : in_array(strtolower((string)$value), ['on','true','1','home']);
 
         if ($entityDomain === 'binary_sensor' && $isStatusVariable) {
-            // Binary-Sensoren: nur Wertanzeige (kein Schalter), immer read-only
-            $presentation = ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}'];
+            // Binary-Sensoren: Wertanzeige mit Labels/Icon gemäß device_class
+            $presentation = $this->CreateBinarySensorPresentationByDeviceClass($attributes);
         } else {
             $presentation = $editable
                 ? $this->CreateBooleanPresentation($entityDomain, true)
@@ -1019,8 +1034,8 @@ protected function DetermineVariableType(
     }
     
     /**
-     * Create custom presentation for binary_sensor based on device_class mapping
-     * Uses the provided German captions and a single icon for both states.
+     * Create Value presentation for binary_sensor based on device_class mapping.
+     * Returns presentation array including ICON and boolean OPTIONS captions.
      */
     protected function CreateBinarySensorPresentationByDeviceClass(array $attributes): array
     {
@@ -1028,7 +1043,7 @@ protected function DetermineVariableType(
         if ($deviceClass === '') {
             return [];
         }
-        // device_class => [ON Caption, OFF Caption, Icon]
+        // device_class => [TRUE Caption, FALSE Caption, Icon]
         $map = [
             'battery'           => ['Batterie niedrig', 'Batterie ok', 'battery-alert'],
             'battery_charging'  => ['lädt', 'lädt nicht', 'battery-bolt'],
@@ -1063,14 +1078,15 @@ protected function DetermineVariableType(
         if (!isset($map[$deviceClass])) {
             return [];
         }
-        [$on, $off, $icon] = $map[$deviceClass];
+        [$trueCaption, $falseCaption, $icon] = $map[$deviceClass];
+        $options = json_encode([
+            ['Value' => false, 'Caption' => $falseCaption],
+            ['Value' => true,  'Caption' => $trueCaption]
+        ]);
         return [
-            // VARIABLE_PRESENTATION_SWITCH
-            'PRESENTATION' => '{60AE6B26-B3E2-BDB1-A3A1-BE232940664B}',
-            'CAPTION_ON'   => $on,
-            'CAPTION_OFF'  => $off,
-            'ICON_ON'      => $icon,
-            'ICON_OFF'     => $icon,
+            'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}', // Value
+            'OPTIONS'      => $options,
+            'ICON'         => $icon
         ];
     }
     
