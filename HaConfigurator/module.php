@@ -407,9 +407,9 @@ class HaConfigurator extends IPSModule
                     'add' => false,
                     'delete' => false,
                     'columns' => [
-                        [ 'name' => 'select', 'caption' => '', 'width' => '40px', 'edit' => [ 'type' => 'CheckBox' ] ],
-                        [ 'name' => 'entity_id', 'caption' => 'Entity ID', 'width' => '40%' ],
-                        [ 'name' => 'friendly_name', 'caption' => 'Name', 'width' => '40%' ],
+                        [ 'name' => 'select', 'caption' => '', 'width' => '10%', 'edit' => [ 'type' => 'CheckBox' ] ],
+                        [ 'name' => 'entity_id', 'caption' => 'Entity ID', 'width' => '30%' ],
+                        [ 'name' => 'friendly_name', 'caption' => 'Name', 'width' => '30%' ],
                         [ 'name' => 'domain', 'caption' => 'Domain', 'width' => '20%' ]
                     ],
                     'values' => $selectRows
