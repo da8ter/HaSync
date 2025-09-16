@@ -354,67 +354,60 @@ class HaMultiEntityDevice extends IPSModule
         $entityIdent = $this->BuildIdentForEntity($entityId); // e.g. STAT_sensor_xxx
         foreach ($attributes as $key => $value) {
             if (in_array($key, $skip, true)) {
-protected function ProcessAttributesForEntity(string $entityId, array $attributes): void
-{
-    // Keys to skip (metadata and slider config)
-    $skip = ['friendly_name','editable','initial','max','min','mode','step','unit_of_measurement'];
-    $entityIdent = $this->BuildIdentForEntity($entityId); // e.g. STAT_sensor_xxx
-    foreach ($attributes as $key => $value) {
-        if (in_array($key, $skip, true)) {
-            continue;
-        }
-        $sanKey = preg_replace('/[^A-Za-z0-9_]/', '_', (string)$key);
-        $ident = 'HAS_' . $entityIdent . '_' . $sanKey;
+                continue;
+            }
+            $sanKey = preg_replace('/[^A-Za-z0-9_]/', '_', (string)$key);
+            $ident = 'HAS_' . $entityIdent . '_' . $sanKey;
 
-        $profile = '';
-        $varType = VARIABLETYPE_STRING;
+            $profile = '';
+            $varType = VARIABLETYPE_STRING;
 
-        if (is_bool($value)) {
-            $varType = VARIABLETYPE_BOOLEAN;
-            $profile = '~Switch';
-        } elseif (is_int($value)) {
-            $varType = VARIABLETYPE_INTEGER;
-        } elseif (is_float($value)) {
-            $varType = VARIABLETYPE_FLOAT;
-            // Simple numeric profile hints
-            if (stripos($key, 'temp') !== false) {
-                $profile = '~Temperature';
-            } elseif (stripos($key, 'humid') !== false) {
-                $profile = '~Humidity';
-            } elseif (stripos($key, 'bright') !== false) {
-                $profile = '~Intensity.255';
+            if (is_bool($value)) {
+                $varType = VARIABLETYPE_BOOLEAN;
+                $profile = '~Switch';
+            } elseif (is_int($value)) {
+                $varType = VARIABLETYPE_INTEGER;
+            } elseif (is_float($value)) {
+                $varType = VARIABLETYPE_FLOAT;
+                // Simple numeric profile hints
+                if (stripos($key, 'temp') !== false) {
+                    $profile = '~Temperature';
+                } elseif (stripos($key, 'humid') !== false) {
+                    $profile = '~Humidity';
+                } elseif (stripos($key, 'bright') !== false) {
+                    $profile = '~Intensity.255';
+                }
+            }
+
+            // Create or maintain
+            $this->MaintainVariable($ident, (string)$key, $varType, $profile, 0, true);
+            $varId = $this->GetIDForIdent($ident);
+            if ($varId !== false) {
+                @IPS_SetHidden($varId, true);
+            }
+
+            // Set value by type
+            switch ($varType) {
+                case VARIABLETYPE_BOOLEAN:
+                    $boolValue = $value;
+                    if (is_string($value)) {
+                        $boolValue = in_array(strtolower((string)$value), ['true','on','1','yes'], true);
+                    }
+                    $this->SetValue($ident, (bool)$boolValue);
+                    break;
+                case VARIABLETYPE_INTEGER:
+                    $this->SetValue($ident, (int)$value);
+                    break;
+                case VARIABLETYPE_FLOAT:
+                    $this->SetValue($ident, (float)$value);
+                    break;
+                case VARIABLETYPE_STRING:
+                default:
+                    $this->SetValue($ident, is_scalar($value) ? (string)$value : json_encode($value));
+                    break;
             }
         }
-
-        // Create or maintain
-        $this->MaintainVariable($ident, (string)$key, $varType, $profile, 0, true);
-        $varId = $this->GetIDForIdent($ident);
-        if ($varId !== false) {
-            @IPS_SetHidden($varId, true);
-        }
-
-        // Set value by type
-        switch ($varType) {
-            case VARIABLETYPE_BOOLEAN:
-                $boolValue = $value;
-                if (is_string($value)) {
-                    $boolValue = in_array(strtolower((string)$value), ['true','on','1','yes'], true);
-                }
-                $this->SetValue($ident, (bool)$boolValue);
-                break;
-            case VARIABLETYPE_INTEGER:
-                $this->SetValue($ident, (int)$value);
-                break;
-            case VARIABLETYPE_FLOAT:
-                $this->SetValue($ident, (float)$value);
-                break;
-            case VARIABLETYPE_STRING:
-            default:
-                $this->SetValue($ident, is_scalar($value) ? (string)$value : json_encode($value));
-                break;
-        }
     }
-}
 
 /**
  * Remove all HAS_* variables created for attributes (across all entities)
