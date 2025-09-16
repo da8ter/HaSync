@@ -78,9 +78,18 @@ class HaMultiEntityDevice extends IPSModule
                 $varId = $this->GetIDForIdent($ident);
                 // Only set presentation if there is no custom presentation yet
                 $meta = @IPS_GetVariable($varId);
-                $hasCustom = is_array($meta) && isset($meta['VariableCustomPresentation']) &&
-                             is_array($meta['VariableCustomPresentation']) && !empty($meta['VariableCustomPresentation']);
-                if (!$hasCustom) {
+                $custom = (is_array($meta) && isset($meta['VariableCustomPresentation']) && is_array($meta['VariableCustomPresentation']))
+                    ? $meta['VariableCustomPresentation']
+                    : [];
+                $hasCustom = !empty($custom);
+                $isIncomplete = false;
+                if ($hasCustom && isset($custom['PRESENTATION']) && $custom['PRESENTATION'] === '{3319437D-7CDE-699D-750A-3C6A3841FA75}') {
+                    // Consider it incomplete if OPTIONS are missing for a binary_sensor Value presentation
+                    if ($entityDomain === 'binary_sensor' && (!isset($custom['OPTIONS']) || !is_array($custom['OPTIONS']) || empty($custom['OPTIONS']))) {
+                        $isIncomplete = true;
+                    }
+                }
+                if (!$hasCustom || $isIncomplete) {
                     IPS_SetVariableCustomPresentation($varId, $presentation);
                 }
             } else {
@@ -256,9 +265,17 @@ class HaMultiEntityDevice extends IPSModule
         }
         if ($domain === 'binary_sensor') {
             $meta = IPS_GetVariable($varId);
-            $hasCustom = isset($meta['VariableCustomPresentation']) && is_array($meta['VariableCustomPresentation']) &&
-                         !empty($meta['VariableCustomPresentation']);
-            if (!$hasCustom) {
+            $custom = isset($meta['VariableCustomPresentation']) && is_array($meta['VariableCustomPresentation'])
+                ? $meta['VariableCustomPresentation']
+                : [];
+            $hasCustom = !empty($custom);
+            $isIncomplete = false;
+            if ($hasCustom && isset($custom['PRESENTATION']) && $custom['PRESENTATION'] === '{3319437D-7CDE-699D-750A-3C6A3841FA75}') {
+                if (!isset($custom['OPTIONS']) || !is_array($custom['OPTIONS']) || empty($custom['OPTIONS'])) {
+                    $isIncomplete = true;
+                }
+            }
+            if (!$hasCustom || $isIncomplete) {
                 $attributes = is_array($payload['attributes'] ?? null) ? $payload['attributes'] : [];
                 $p = $this->CreateBinarySensorPresentationByDeviceClass($attributes);
                 if (!empty($p)) {
@@ -377,20 +394,41 @@ class HaMultiEntityDevice extends IPSModule
     {
         $deviceClass = isset($attributes['device_class']) ? (string)$attributes['device_class'] : '';
         if ($deviceClass === '') {
-            return ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}'];
+            return [];
         }
+        // device_class => [TRUE Caption, FALSE Caption, Icon]
         $map = [
-            'door'      => ['offen', 'geschlossen', 'door-open'],
-            'window'    => ['offen', 'geschlossen', 'window-open'],
-            'plug'      => ['eingesteckt', 'ausgesteckt', 'plug'],
-            'battery'   => ['Batterie niedrig', 'Batterie ok', 'battery-alert'],
-            'problem'   => ['Problem erkannt', 'kein Problem', 'triangle-exclamation'],
-            'motion'    => ['Bewegung erkannt', 'keine Bewegung', 'person-running'],
-            'presence'  => ['anwesend', 'abwesend', 'user'],
-            'lock'      => ['entsperrt', 'gesperrt', 'lock-open'],
+            'battery'           => ['Batterie niedrig', 'Batterie ok', 'battery-alert'],
+            'battery_charging'  => ['lädt', 'lädt nicht', 'battery-bolt'],
+            'carbon_monoxide'   => ['CO erkannt', 'kein CO', 'cloud-bolt'],
+            'cold'              => ['kalt', 'normal', 'snowflake'],
+            'connectivity'      => ['verbunden', 'getrennt', 'wifi'],
+            'door'              => ['offen', 'geschlossen', 'door-open'],
+            'garage_door'       => ['offen', 'geschlossen', 'garage-open'],
+            'gas'               => ['Gas erkannt', 'kein Gas', 'cloud-bolt'],
+            'heat'              => ['heiß', 'normal', 'fire'],
+            'light'             => ['Licht erkannt', 'kein Licht', 'lightbulb-on'],
+            'lock'              => ['entsperrt', 'gesperrt', 'lock-open'],
+            'moisture'          => ['nass', 'trocken', 'droplet'],
+            'motion'            => ['Bewegung erkannt', 'keine Bewegung', 'person-running'],
+            'moving'            => ['in Bewegung', 'stillstehend', 'person-running'],
+            'occupancy'         => ['belegt', 'frei', 'house-person-return'],
+            'opening'           => ['offen', 'geschlossen', 'up-right-from-square'],
+            'plug'              => ['eingesteckt', 'ausgesteckt', 'plug'],
+            'power'             => ['Strom erkannt', 'kein Strom', 'bolt'],
+            'presence'          => ['anwesend', 'abwesend', 'user'],
+            'problem'           => ['Problem erkannt', 'kein Problem', 'triangle-exclamation'],
+            'running'           => ['läuft', 'gestoppt', 'play'],
+            'safety'            => ['unsicher/gefährlich', 'sicher', 'shield-exclamation'],
+            'smoke'             => ['Rauch erkannt', 'kein Rauch', 'fire-smoke'],
+            'sound'             => ['Geräusch erkannt', 'kein Geräusch', 'volume-high'],
+            'tamper'            => ['Manipulation erkannt', 'keine Manipulation', 'hand'],
+            'update'            => ['Update verfügbar', 'aktuell', 'arrows-rotate'],
+            'vibration'         => ['Vibration erkannt', 'keine Vibration', 'chart-fft'],
+            'window'            => ['offen', 'geschlossen', 'window-open'],
         ];
         if (!isset($map[$deviceClass])) {
-            return ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}'];
+            return [];
         }
         [$trueCaption, $falseCaption, $icon] = $map[$deviceClass];
         $options = [
