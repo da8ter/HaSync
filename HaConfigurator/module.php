@@ -281,7 +281,7 @@ class HaConfigurator extends IPSModule
                 'delete' => true,
                 'columns' => [
                     [ 'label' => 'Entity ID', 'name' => 'entity_id', 'width' => '30%' ],
-                    [ 'label' => 'Name', 'name' => 'friendly_name', 'width' => 'auto' ],
+                    [ 'label' => 'Name', 'name' => 'friendly_name', 'width' => '30%' ],
                     [ 'label' => 'State', 'name' => 'state', 'width' => 'auto' ]
                 ],
                 'values' => []
