@@ -237,18 +237,56 @@ class HaConfigurator extends IPSModule
             ];
         }
         
-        // Find configurator index
-        $configuratorIndex = -1;
-        foreach ($form['actions'] as $index => $action) {
-            if (isset($action['type']) && $action['type'] === 'Configurator' && 
-                isset($action['name']) && $action['name'] === 'DeviceConfigurator') {
-                $configuratorIndex = $index;
+        // Find configurator (supports top-level and inside ExpansionPanel)
+        $configuratorRef = null; // reference to the configurator array
+        // 1) Try top-level actions
+        foreach ($form['actions'] as $idx => &$action) {
+            if (isset($action['type'], $action['name'])
+                && $action['type'] === 'Configurator'
+                && $action['name'] === 'DeviceConfigurator') {
+                $configuratorRef = &$action;
                 break;
             }
         }
+        unset($action);
+        // 2) Try nested in ExpansionPanel -> items
+        if ($configuratorRef === null) {
+            foreach ($form['actions'] as $aIdx => &$action) {
+                if (($action['type'] ?? '') === 'ExpansionPanel' && isset($action['items']) && is_array($action['items'])) {
+                    foreach ($action['items'] as $iIdx => &$item) {
+                        if (isset($item['type'], $item['name'])
+                            && $item['type'] === 'Configurator'
+                            && $item['name'] === 'DeviceConfigurator') {
+                            $configuratorRef = &$item;
+                            break 2;
+                        }
+                    }
+                    unset($item);
+                }
+            }
+            unset($action);
+        }
         
-        if ($configuratorIndex === -1 && !file_exists($formFile)) {
-            $configuratorIndex = 0;
+        // If no configurator found and form.json missing, create a minimal one at actions[0]
+        if ($configuratorRef === null && !file_exists($formFile)) {
+            // Ensure actions exists
+            if (!isset($form['actions']) || !is_array($form['actions'])) {
+                $form['actions'] = [];
+            }
+            $form['actions'][] = [
+                'type' => 'Configurator',
+                'name' => 'DeviceConfigurator',
+                'rowCount' => 20,
+                'add' => true,
+                'delete' => true,
+                'columns' => [
+                    [ 'label' => 'Entity ID', 'name' => 'entity_id', 'width' => '200px' ],
+                    [ 'label' => 'Name', 'name' => 'friendly_name', 'width' => 'auto' ],
+                    [ 'label' => 'State', 'name' => 'state', 'width' => '100px' ]
+                ],
+                'values' => []
+            ];
+            $configuratorRef = &$form['actions'][count($form['actions']) - 1];
         }
         
         // Check Home Assistant URL and token
@@ -256,8 +294,8 @@ class HaConfigurator extends IPSModule
         $haToken = $this->ReadPropertyString('ha_token');
         
         if (empty($haUrl) || empty($haToken)) {
-            if ($configuratorIndex !== -1) {
-                $form['actions'][$configuratorIndex]['values'] = [[
+            if ($configuratorRef !== null) {
+                $configuratorRef['values'] = [[
                     'entity_id' => '',
                     'friendly_name' => $this->Translate('Home Assistant URL and Token must be configured'),
                     'state' => ''
@@ -270,8 +308,8 @@ class HaConfigurator extends IPSModule
         $devices = $this->FetchDevices();
         
         if ($devices === false || empty($devices)) {
-            if ($configuratorIndex !== -1) {
-                $form['actions'][$configuratorIndex]['values'] = [[
+            if ($configuratorRef !== null) {
+                $configuratorRef['values'] = [[
                     'entity_id' => '',
                     'friendly_name' => $this->Translate('No devices found or connection error'),
                     'state' => ''
@@ -332,8 +370,8 @@ class HaConfigurator extends IPSModule
         });
         
         // Update values in configurator
-        if ($configuratorIndex !== -1) {
-            $form['actions'][$configuratorIndex]['values'] = $values;
+        if ($configuratorRef !== null) {
+            $configuratorRef['values'] = $values;
         }
 
         // Build selectable rows for multi-entity creation
