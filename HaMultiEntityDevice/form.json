@@ -1,6 +1,5 @@
 {
   "elements": [
-    { "type": "ValidationTextBox", "name": "group_name", "caption": "Gruppenname" },
     { "type": "CheckBox", "name": "create_additional_vars", "caption": "Zusätzliche Attribut-Variablen erstellen" },
     {
       "type": "List",
@@ -10,9 +9,9 @@
       "add": true,
       "delete": true,
       "columns": [
-        { "name": "entity_id", "caption": "Entity ID", "width": "40%", "add": "", "edit": { "type": "ValidationTextBox" } },
+        { "name": "entity_id", "caption": "Entity ID", "width": "30%", "add": "", "edit": { "type": "ValidationTextBox" } },
         { "name": "alias", "caption": "Alias", "width": "30%", "add": "", "edit": { "type": "ValidationTextBox" } },
-        { "name": "role", "caption": "Rolle", "width": "15%", "add": "", "edit": { "type": "Select", "options": [
+        { "name": "role", "caption": "Rolle", "add": "", "edit": { "type": "Select", "options": [
           {"caption": "primary", "value": "primary"},
           {"caption": "control", "value": "control"},
           {"caption": "sensor", "value": "sensor"},
