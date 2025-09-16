@@ -121,7 +121,12 @@ class HaMultiEntityDevice extends IPSModule
                         ];
                     }
                     $this->SendDebug('ApplyChanges', 'Setting presentation for ' . $entityId . ' (' . $entityDomain . '): ' . json_encode($presentation), 0);
-                    IPS_SetVariableCustomPresentation($varId, $presentation);
+                    // Remove ICON before setting presentation (handled separately)
+                    $presForIPS = $presentation;
+                    if (isset($presForIPS['ICON'])) {
+                        unset($presForIPS['ICON']);
+                    }
+                    IPS_SetVariableCustomPresentation($varId, $presForIPS);
                     // Set icon right away if presentation suggests one and none is set yet
                     $objSet = @IPS_GetObject($varId);
                     $currentIconSet = is_array($objSet) ? ($objSet['ObjectIcon'] ?? '') : '';
@@ -340,7 +345,12 @@ class HaMultiEntityDevice extends IPSModule
                         ]
                     ];
                 }
-                IPS_SetVariableCustomPresentation($varId, $p);
+                // Remove ICON before setting presentation (handled separately)
+                $presForIPS = $p;
+                if (isset($presForIPS['ICON'])) {
+                    unset($presForIPS['ICON']);
+                }
+                IPS_SetVariableCustomPresentation($varId, $presForIPS);
                 // Icon only if none set
                 $obj = IPS_GetObject($varId);
                 $currentIcon = $obj['ObjectIcon'] ?? '';
