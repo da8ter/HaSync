@@ -96,42 +96,32 @@ class HaMultiEntityDevice extends IPSModule
                     $isIncomplete = true;
                 }
                 if (!$hasCustom || $isIncomplete) {
-                    // If binary_sensor has no device_class mapping, fall back to An/Aus options
                     if ($entityDomain === 'binary_sensor' && (empty($presentation) || !isset($presentation['OPTIONS']))) {
                         $this->SendDebug('ApplyChanges', 'Binary sensor without device_class -> using generic An/Aus options', 0);
                         $presentation = [
                             'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
                             'OPTIONS' => [
-                                [ 'Value' => false, 'Caption' => 'Aus', 'IconActive' => false, 'IconValue' => '', 'ColorActive' => false, 'ColorValue' => -1 ],
-                                [ 'Value' => true,  'Caption' => 'An',  'IconActive' => false, 'IconValue' => '', 'ColorActive' => false, 'ColorValue' => -1 ]
+                                [
+                                    'Value' => false,
+                                    'Caption' => 'Aus',
+                                    'IconActive' => false,
+                                    'IconValue' => '',
+                                    'ColorActive' => false,
+                                    'ColorValue' => -1
+                                ],
+                                [
+                                    'Value' => true,
+                                    'Caption' => 'An',
+                                    'IconActive' => false,
+                                    'IconValue' => '',
+                                    'ColorActive' => false,
+                                    'ColorValue' => -1
+                                ]
                             ]
                         ];
                     }
                     $this->SendDebug('ApplyChanges', 'Setting presentation for ' . $entityId . ' (' . $entityDomain . '): ' . json_encode($presentation), 0);
-                    // Remove keys not supported by IPS_SetVariableCustomPresentation (e.g., ICON)
-                    $presToSet = $presentation;
-                    if (is_array($presToSet) && array_key_exists('ICON', $presToSet)) {
-                        unset($presToSet['ICON']);
-                    }
-                    // If Value presentation, remove SUFFIX/DIGITS which are not supported here
-                    if (is_array($presToSet)
-                        && isset($presToSet['PRESENTATION'])
-                        && $presToSet['PRESENTATION'] === '{3319437D-7CDE-699D-750A-3C6A3841FA75}') {
-                        unset($presToSet['SUFFIX'], $presToSet['DIGITS']);
-                        // Sanitize OPTIONS: only keep Value and Caption
-                        if (isset($presToSet['OPTIONS']) && is_array($presToSet['OPTIONS'])) {
-                            $clean = [];
-                            foreach ($presToSet['OPTIONS'] as $opt) {
-                                if (!is_array($opt)) { continue; }
-                                $clean[] = [
-                                    'Value' => isset($opt['Value']) ? (bool)$opt['Value'] : false,
-                                    'Caption' => (string)($opt['Caption'] ?? '')
-                                ];
-                            }
-                            $presToSet['OPTIONS'] = $clean;
-                        }
-                    }
-                    IPS_SetVariableCustomPresentation($varId, $presToSet);
+                    IPS_SetVariableCustomPresentation($varId, $presentation);
                     // Set icon right away if presentation suggests one and none is set yet
                     $objSet = @IPS_GetObject($varId);
                     $currentIconSet = is_array($objSet) ? ($objSet['ObjectIcon'] ?? '') : '';
@@ -141,6 +131,9 @@ class HaMultiEntityDevice extends IPSModule
                     if ($entityDomain === 'binary_sensor') {
                         @$this->DisableAction($ident);
                     }
+                } else {
+                    $this->MaintainVariable($ident, $name, $varType, $profile, 0, true);
+                    $varId = $this->GetIDForIdent($ident);
                 }
             } else {
                 $this->MaintainVariable($ident, $name, $varType, $profile, 0, true);
@@ -347,28 +340,7 @@ class HaMultiEntityDevice extends IPSModule
                         ]
                     ];
                 }
-                // Remove unsupported keys (e.g., ICON) before setting presentation
-                $presToSet = $p;
-                if (is_array($presToSet) && array_key_exists('ICON', $presToSet)) {
-                    unset($presToSet['ICON']);
-                }
-                if (is_array($presToSet)
-                    && isset($presToSet['PRESENTATION'])
-                    && $presToSet['PRESENTATION'] === '{3319437D-7CDE-699D-750A-3C6A3841FA75}') {
-                    unset($presToSet['SUFFIX'], $presToSet['DIGITS']);
-                    if (isset($presToSet['OPTIONS']) && is_array($presToSet['OPTIONS'])) {
-                        $clean = [];
-                        foreach ($presToSet['OPTIONS'] as $opt) {
-                            if (!is_array($opt)) { continue; }
-                            $clean[] = [
-                                'Value' => isset($opt['Value']) ? (bool)$opt['Value'] : false,
-                                'Caption' => (string)($opt['Caption'] ?? '')
-                            ];
-                        }
-                        $presToSet['OPTIONS'] = $clean;
-                    }
-                }
-                IPS_SetVariableCustomPresentation($varId, $presToSet);
+                IPS_SetVariableCustomPresentation($varId, $p);
                 // Icon only if none set
                 $obj = IPS_GetObject($varId);
                 $currentIcon = $obj['ObjectIcon'] ?? '';
