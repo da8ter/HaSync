@@ -413,24 +413,13 @@ class HaMultiEntityDevice extends IPSModule
             $sanKey = preg_replace('/[^A-Za-z0-9_]/', '_', (string)$key);
             $ident = 'HAS_' . $entityIdent . '_' . $sanKey;
 
-            $profile = '';
             $varType = VARIABLETYPE_STRING;
-
             if (is_bool($value)) {
                 $varType = VARIABLETYPE_BOOLEAN;
-                $profile = '~Switch';
             } elseif (is_int($value)) {
                 $varType = VARIABLETYPE_INTEGER;
             } elseif (is_float($value)) {
                 $varType = VARIABLETYPE_FLOAT;
-                // Simple numeric profile hints
-                if (stripos($key, 'temp') !== false) {
-                    $profile = '~Temperature';
-                } elseif (stripos($key, 'humid') !== false) {
-                    $profile = '~Humidity';
-                } elseif (stripos($key, 'bright') !== false) {
-                    $profile = '~Intensity.255';
-                }
             }
 
             // Find existing attribute variable under the Status variable
@@ -444,9 +433,8 @@ class HaMultiEntityDevice extends IPSModule
                 @IPS_SetParent($varId, ($statusId > 0 ? $statusId : $this->InstanceID));
                 @IPS_SetIdent($varId, $ident);
                 @IPS_SetName($varId, (string)$key);
-                if ($profile !== '') {
-                    @IPS_SetVariableCustomProfile($varId, $profile);
-                }
+                // Ensure no custom profile is set for attribute variables
+                @IPS_SetVariableCustomProfile($varId, '');
             } else {
                 // Ensure type/profile match; recreate if type changed
                 $v = @IPS_GetVariable($varId);
@@ -457,12 +445,8 @@ class HaMultiEntityDevice extends IPSModule
                     @IPS_SetIdent($varId, $ident);
                     @IPS_SetName($varId, (string)$key);
                 }
-                if ($profile !== '') {
-                    @IPS_SetVariableCustomProfile($varId, $profile);
-                } else {
-                    // Clear any previous custom profile if now empty
-                    @IPS_SetVariableCustomProfile($varId, '');
-                }
+                // Always clear any previous custom profile for attribute variables
+                @IPS_SetVariableCustomProfile($varId, '');
             }
             @IPS_SetHidden($varId, true);
             // Place directly below the corresponding Status variable (ordering among siblings)
