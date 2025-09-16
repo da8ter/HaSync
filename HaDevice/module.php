@@ -585,6 +585,7 @@ public function ProcessMQTTStateUpdate(string $data): bool
         if ($isUnknown && in_array($varInfo['VariableType'], [VARIABLETYPE_INTEGER, VARIABLETYPE_FLOAT, VARIABLETYPE_BOOLEAN], true)) {
             $this->SendDebug('ProcessMQTTStateUpdate', 'Ignored state "' . (string)$raw . '" for numeric/bool variable to keep last value', 0);
         } else {
+            $skipStateSet = false;
             switch ($varInfo['VariableType']) {
                 case VARIABLETYPE_BOOLEAN:
                     $value = is_bool($raw)
@@ -592,23 +593,37 @@ public function ProcessMQTTStateUpdate(string $data): bool
                         : in_array($rawStr, ['on','true','1','yes','home']);
                     break;
                 case VARIABLETYPE_INTEGER:
+                    // Prevent accidental 0 by ignoring non-numeric states for numeric variables
+                    if (!is_numeric($raw)) {
+                        $this->SendDebug('ProcessMQTTStateUpdate', 'Ignored non-numeric state for INTEGER variable: ' . (string)$raw, 0);
+                        $skipStateSet = true; // skip SetValue and presentation updates
+                        break;
+                    }
                     $value = (int)$raw;
                     break;
                 case VARIABLETYPE_FLOAT:
+                    // Prevent accidental 0 by ignoring non-numeric states for numeric variables
+                    if (!is_numeric($raw)) {
+                        $this->SendDebug('ProcessMQTTStateUpdate', 'Ignored non-numeric state for FLOAT variable: ' . (string)$raw, 0);
+                        $skipStateSet = true; // skip SetValue and presentation updates
+                        break;
+                    }
                     $value = (float)$raw;
                     break;
                 default:
                     $value = (string)$raw;
             }
-            $this->SetValue('Status', $value);
-            // Enforce Value presentation for binary_sensor (no switch)
-            $entityDomain = '';
-            $dot = strpos($entityIdBase, '.');
-            if ($dot !== false) {
-                $entityDomain = substr($entityIdBase, 0, $dot);
-            }
-            if ($varInfo['VariableType'] === VARIABLETYPE_BOOLEAN && $entityDomain === 'binary_sensor') {
-                IPS_SetVariableCustomPresentation($statusId, ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']);
+            if (!$skipStateSet) {
+                $this->SetValue('Status', $value);
+                // Enforce Value presentation for binary_sensor (no switch)
+                $entityDomain = '';
+                $dot = strpos($entityIdBase, '.');
+                if ($dot !== false) {
+                    $entityDomain = substr($entityIdBase, 0, $dot);
+                }
+                if ($varInfo['VariableType'] === VARIABLETYPE_BOOLEAN && $entityDomain === 'binary_sensor') {
+                    IPS_SetVariableCustomPresentation($statusId, ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']);
+                }
             }
         }
     }
