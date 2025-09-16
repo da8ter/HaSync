@@ -442,6 +442,74 @@ class HaBridge extends IPSModule
         }
     }
 
+    /**
+     * Create Value presentation for binary_sensor based on device_class mapping.
+     * Returns presentation array including ICON and boolean OPTIONS captions.
+     */
+    protected function CreateBinarySensorValuePresentationByDeviceClass(string $deviceClass): array
+    {
+        if ($deviceClass === '') {
+            return [];
+        }
+        // device_class => [TRUE Caption, FALSE Caption, Icon]
+        $map = [
+            'battery'           => ['Batterie niedrig', 'Batterie ok', 'battery-alert'],
+            'battery_charging'  => ['lädt', 'lädt nicht', 'battery-bolt'],
+            'carbon_monoxide'   => ['CO erkannt', 'kein CO', 'cloud-bolt'],
+            'cold'              => ['kalt', 'normal', 'snowflake'],
+            'connectivity'      => ['verbunden', 'getrennt', 'wifi'],
+            'door'              => ['offen', 'geschlossen', 'door-open'],
+            'garage_door'       => ['offen', 'geschlossen', 'garage-open'],
+            'gas'               => ['Gas erkannt', 'kein Gas', 'cloud-bolt'],
+            'heat'              => ['heiß', 'normal', 'fire'],
+            'light'             => ['Licht erkannt', 'kein Licht', 'lightbulb-on'],
+            'lock'              => ['entsperrt', 'gesperrt', 'lock-open'],
+            'moisture'          => ['nass', 'trocken', 'droplet'],
+            'motion'            => ['Bewegung erkannt', 'keine Bewegung', 'person-running'],
+            'moving'            => ['in Bewegung', 'stillstehend', 'person-running'],
+            'occupancy'         => ['belegt', 'frei', 'house-person-return'],
+            'opening'           => ['offen', 'geschlossen', 'up-right-from-square'],
+            'plug'              => ['eingesteckt', 'ausgesteckt', 'plug'],
+            'power'             => ['Strom erkannt', 'kein Strom', 'bolt'],
+            'presence'          => ['anwesend', 'abwesend', 'user'],
+            'problem'           => ['Problem erkannt', 'kein Problem', 'triangle-exclamation'],
+            'running'           => ['läuft', 'gestoppt', 'play'],
+            'safety'            => ['unsicher/gefährlich', 'sicher', 'shield-exclamation'],
+            'smoke'             => ['Rauch erkannt', 'kein Rauch', 'fire-smoke'],
+            'sound'             => ['Geräusch erkannt', 'kein Geräusch', 'volume-high'],
+            'tamper'            => ['Manipulation erkannt', 'keine Manipulation', 'hand'],
+            'update'            => ['Update verfügbar', 'aktuell', 'arrows-rotate'],
+            'vibration'         => ['Vibration erkannt', 'keine Vibration', 'chart-fft'],
+            'window'            => ['offen', 'geschlossen', 'window-open'],
+        ];
+        if (!isset($map[$deviceClass])) {
+            return [];
+        }
+        [$trueCaption, $falseCaption, $icon] = $map[$deviceClass];
+        $options = json_encode([
+            [
+                'Value' => false,
+                'Caption' => $falseCaption,
+                'IconActive' => false,
+                'IconValue' => '',
+                'ColorActive' => false,
+                'ColorValue' => -1
+            ],
+            [
+                'Value' => true,
+                'Caption' => $trueCaption,
+                'IconActive' => false,
+                'IconValue' => '',
+                'ColorActive' => false,
+                'ColorValue' => -1
+            ]
+        ]);
+        return [
+            'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
+            'OPTIONS'      => $options,
+            'ICON'         => $icon
+        ];
+    }
     
     
     // Auto-Discovery support removed; no discovery-based device removal.
