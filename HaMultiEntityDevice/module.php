@@ -278,15 +278,24 @@ class HaMultiEntityDevice extends IPSModule
             if (!$hasCustom || $isIncomplete) {
                 $attributes = is_array($payload['attributes'] ?? null) ? $payload['attributes'] : [];
                 $p = $this->CreateBinarySensorPresentationByDeviceClass($attributes);
-                if (!empty($p)) {
-                    IPS_SetVariableCustomPresentation($varId, $p);
+                if (empty($p)) {
+                    $p = [
+                        'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
+                        'OPTIONS' => [
+                            [ 'Value' => false, 'Caption' => 'Aus', 'IconActive' => false, 'IconValue' => '', 'ColorActive' => false, 'ColorValue' => -1 ],
+                            [ 'Value' => true,  'Caption' => 'An',  'IconActive' => false, 'IconValue' => '', 'ColorActive' => false, 'ColorValue' => -1 ]
+                        ]
+                    ];
                 }
+                IPS_SetVariableCustomPresentation($varId, $p);
                 // Icon only if none set
                 $obj = IPS_GetObject($varId);
                 $currentIcon = $obj['ObjectIcon'] ?? '';
                 if ($currentIcon === '' && isset($p['ICON'])) {
                     IPS_SetIcon($varId, (string)$p['ICON']);
                 }
+                // Ensure action is disabled
+                @$this->DisableAction($ident);
             }
         }
     }
@@ -318,7 +327,14 @@ class HaMultiEntityDevice extends IPSModule
             if ($entityDomain === 'binary_sensor' && $isStatusVariable) {
                 $presentation = $this->CreateBinarySensorPresentationByDeviceClass($attributes);
                 if (empty($presentation)) {
-                    $presentation = ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}'];
+                    // Generic labels even without device_class
+                    $presentation = [
+                        'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
+                        'OPTIONS' => [
+                            [ 'Value' => false, 'Caption' => 'Aus', 'IconActive' => false, 'IconValue' => '', 'ColorActive' => false, 'ColorValue' => -1 ],
+                            [ 'Value' => true,  'Caption' => 'An',  'IconActive' => false, 'IconValue' => '', 'ColorActive' => false, 'ColorValue' => -1 ]
+                        ]
+                    ];
                 }
                 $editable = false;
             } else {
