@@ -356,10 +356,10 @@ class HaConfigurator extends IPSModule
         // Append Multi-Entity Wizard action block if not present in form.json
         $form['actions'][] = [
             'type' => 'ExpansionPanel',
+            'expanded' => true,
             'caption' => 'Multi-Entitäten-Gerät erstellen',
             'items' => [
-                [ 'type' => 'ValidationTextBox', 'name' => 'multi_group_name', 'caption' => 'Gruppenname' ],
-                [ 'type' => 'ValidationTextBox', 'name' => 'multi_entity_ids', 'caption' => 'Entity IDs (kommagetrennt oder je Zeile)' ],
+                [ 'type' => 'ValidationTextBox', 'name' => 'multi_group_name', 'caption' => 'Geräte Name' ],
                 [ 'type' => 'SelectObject', 'name' => 'target_category', 'caption' => 'Zielkategorie' ],
                 [
                     'type' => 'List',
@@ -376,8 +376,7 @@ class HaConfigurator extends IPSModule
                     ],
                     'values' => $selectRows
                 ],
-                [ 'type' => 'Button', 'caption' => 'Aus Auswahl erstellen', 'onClick' => ' $sel=[]; foreach ($multi_select_entities as $row) { if (isset($row["select"]) && $row["select"]) { $sel[] = $row["entity_id"]; } } HACO_CreateMultiEntityDeviceFromSelection($id, json_encode($sel), $multi_group_name, $target_category);' ],
-                [ 'type' => 'Button', 'caption' => 'Aus Eingabefeld erstellen', 'onClick' => 'HACO_CreateMultiEntityDevice($id, $target_category);' ]
+                [ 'type' => 'Button', 'caption' => 'Create from selection', 'onClick' => ' $sel=[]; foreach ($multi_select_entities as $row) { if (isset($row["select"]) && $row["select"]) { $sel[] = $row["entity_id"]; } } HACO_CreateMultiEntityDeviceFromSelection($id, json_encode($sel), $multi_group_name, $target_category);' ]
             ]
         ];
 
