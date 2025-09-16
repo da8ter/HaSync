@@ -374,8 +374,8 @@ class HaConfigurator extends IPSModule
                     ],
                     'values' => $selectRows
                 ],
-                [ 'type' => 'Button', 'caption' => 'Aus Auswahl erstellen', 'onClick' => ' $sel=[]; foreach ($multi_select_entities as $row) { if (isset($row["select"]) && $row["select"]) { $sel[] = $row["entity_id"]; } } HACO_CreateMultiEntityDeviceFromSelection($_IPS["TARGET"], json_encode($sel), $multi_group_name);' ],
-                [ 'type' => 'Button', 'caption' => 'Aus Eingabefeld erstellen', 'onClick' => 'HACO_CreateMultiEntityDevice($_IPS[\'TARGET\']);' ]
+                [ 'type' => 'Button', 'caption' => 'Aus Auswahl erstellen', 'onClick' => ' $sel=[]; foreach ($multi_select_entities as $row) { if (isset($row["select"]) && $row["select"]) { $sel[] = $row["entity_id"]; } } HACO_CreateMultiEntityDeviceFromSelection($id, json_encode($sel), $multi_group_name);' ],
+                [ 'type' => 'Button', 'caption' => 'Aus Eingabefeld erstellen', 'onClick' => 'HACO_CreateMultiEntityDevice($id);' ]
             ]
         ];
 
@@ -439,7 +439,12 @@ class HaConfigurator extends IPSModule
         if ($group !== '') {
             @IPS_SetName($instID, $group);
         }
-        @IPS_SetParent($instID, $this->InstanceID);
+        // Parent under HaBridge if available
+        $bridgeModuleID = '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}';
+        $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
+        if (is_array($bridges) && !empty($bridges)) {
+            @IPS_SetParent($instID, (int)$bridges[0]);
+        }
         @IPS_SetProperty($instID, 'group_name', $group);
         @IPS_SetProperty($instID, 'entities', json_encode($entities));
         @IPS_ApplyChanges($instID);
