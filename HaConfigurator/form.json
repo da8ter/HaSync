@@ -30,7 +30,7 @@
                     },
                     "columns": [
                         {"caption": "Entity ID", "name": "entity_id", "width": "30%"},
-                        {"caption": "Name", "name": "friendly_name", "width": "auto"},
+                        {"caption": "Name", "name": "friendly_name", "width": "30%"},
                         {"caption": "Status", "name": "state", "width": "auto"}
                     ],
                     "values": [],
