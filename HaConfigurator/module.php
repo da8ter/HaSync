@@ -18,6 +18,9 @@ class HaConfigurator extends IPSModule
         // Properties for Home Assistant connection
         $this->RegisterPropertyString('ha_url', '');
         $this->RegisterPropertyString('ha_token', '');
+        // Multi-Entity wizard inputs
+        $this->RegisterPropertyString('multi_group_name', '');
+        $this->RegisterPropertyString('multi_entity_ids', ''); // newline or comma separated list of entity_ids
         
         // Real-time options
         $this->RegisterPropertyBoolean('use_realtime', false);
@@ -331,7 +334,87 @@ class HaConfigurator extends IPSModule
         if ($configuratorIndex !== -1) {
             $form['actions'][$configuratorIndex]['values'] = $values;
         }
-        
+
+        // Append Multi-Entity Wizard action block if not present in form.json
+        $form['actions'][] = [
+            'type' => 'ExpansionPanel',
+            'caption' => 'Multi-Entitäten-Gerät erstellen',
+            'items' => [
+                [ 'type' => 'ValidationTextBox', 'name' => 'multi_group_name', 'caption' => 'Gruppenname' ],
+                [ 'type' => 'ValidationTextBox', 'name' => 'multi_entity_ids', 'caption' => 'Entity IDs (kommagetrennt oder je Zeile)' ],
+                [ 'type' => 'Button', 'caption' => 'Multi-Entitäten-Gerät erstellen', 'onClick' => 'HACO_CreateMultiEntityDevice($_IPS[\'TARGET\']);' ]
+            ]
+        ];
+
         return json_encode($form);
+    }
+
+    /**
+     * Create a HaMultiEntityDevice instance from the provided group name and entity IDs
+     */
+    public function CreateMultiEntityDevice()
+    {
+        $group = trim($this->ReadPropertyString('multi_group_name'));
+        $idsRaw = trim($this->ReadPropertyString('multi_entity_ids'));
+        if ($idsRaw === '') {
+            $this->LogMessage('No entity IDs provided', KL_WARNING);
+            return false;
+        }
+        // Parse IDs (comma or newline separated)
+        $list = preg_split('/[\n,;]+/', $idsRaw);
+        $entityIds = [];
+        foreach ($list as $id) {
+            $id = trim($id);
+            if ($id !== '') {
+                $entityIds[] = $id;
+            }
+        }
+        $entityIds = array_values(array_unique($entityIds));
+        if (empty($entityIds)) {
+            $this->LogMessage('Parsed entity list is empty', KL_WARNING);
+            return false;
+        }
+
+        // Resolve friendly names via /api/states
+        $states = $this->FetchDevices();
+        $entities = [];
+        foreach ($entityIds as $eid) {
+            $friendly = $eid;
+            $found = false;
+            if (is_array($states)) {
+                foreach ($states as $st) {
+                    if (($st['entity_id'] ?? '') === $eid) {
+                        $friendly = (string)($st['attributes']['friendly_name'] ?? $eid);
+                        $found = true;
+                        break;
+                    }
+                }
+            }
+            $entities[] = [ 'entity_id' => $eid, 'alias' => $friendly, 'role' => 'other', 'section' => '' ];
+            if (!$found) {
+                $this->SendDebug('CreateMultiEntityDevice', 'Entity not found in states: ' . $eid, 0);
+            }
+        }
+
+        // Create instance
+        $moduleID = '{5E0B3C3A-FD10-4E32-95D3-1B4EAA9A7C77}'; // HaMultiEntityDevice
+        $instID = @IPS_CreateInstance($moduleID);
+        if ($instID === false) {
+            $this->LogMessage('Failed to create HaMultiEntityDevice instance', KL_ERROR);
+            return false;
+        }
+        if ($group !== '') {
+            @IPS_SetName($instID, $group);
+        }
+        @IPS_SetParent($instID, $this->InstanceID);
+        @IPS_SetProperty($instID, 'group_name', $group);
+        @IPS_SetProperty($instID, 'entities', json_encode($entities));
+        @IPS_ApplyChanges($instID);
+
+        // Clear input fields
+        $this->UpdateFormField('multi_group_name', 'value', '');
+        $this->UpdateFormField('multi_entity_ids', 'value', '');
+
+        return true;
     }
 }

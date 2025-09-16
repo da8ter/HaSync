@@ -15,6 +15,9 @@
         },
         "HaBridge": {
             "file": "HaBridge/module.php"
+        },
+        "HaMultiEntityDevice": {
+            "file": "HaMultiEntityDevice/module.php"
         }
     },
     "version": "0.1.0",

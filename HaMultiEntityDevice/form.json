@@ -1,0 +1,32 @@
+{
+  "elements": [
+    { "type": "ValidationTextBox", "name": "group_name", "caption": "Gruppenname" },
+    {
+      "type": "List",
+      "name": "entities",
+      "caption": "Entitäten",
+      "rowCount": 8,
+      "add": true,
+      "delete": true,
+      "columns": [
+        { "name": "entity_id", "caption": "Entity ID", "width": "40%", "add": "", "edit": { "type": "ValidationTextBox" } },
+        { "name": "alias", "caption": "Alias", "width": "30%", "add": "", "edit": { "type": "ValidationTextBox" } },
+        { "name": "role", "caption": "Rolle", "width": "15%", "add": "", "edit": { "type": "Select", "options": [
+          {"caption": "primary", "value": "primary"},
+          {"caption": "control", "value": "control"},
+          {"caption": "sensor", "value": "sensor"},
+          {"caption": "battery", "value": "battery"},
+          {"caption": "door", "value": "door"},
+          {"caption": "other", "value": "other"}
+        ] } },
+        { "name": "section", "caption": "Bereich", "width": "15%", "add": "", "edit": { "type": "ValidationTextBox" } }
+      ],
+      "values": []
+    }
+  ],
+  "actions": [
+    { "type": "Label", "label": "Fügen Sie hier die gewünschten Home Assistant Entity-IDs hinzu. Präsentationen/Icons werden nur bei der ersten Erstellung gesetzt." },
+    { "type": "Button", "caption": "Neu aufbauen", "onClick": "HAMED_Rebuild($_IPS['TARGET']);" }
+  ],
+  "status": []
+}

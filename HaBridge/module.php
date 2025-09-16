@@ -117,6 +117,10 @@ class HaBridge extends IPSModule
                         }
                     }
                     break;
+                case 'UpdateSubscriptions':
+                    // Refresh topic subscriptions (e.g., after creating Multi-Entity devices)
+                    $this->SubscribeToTopics();
+                    break;
                 default:
                     // Unknown action - ignore for now
                     break;
@@ -201,16 +205,16 @@ class HaBridge extends IPSModule
     {
         $discoveryPrefix = $this->ReadPropertyString('ha_discovery_prefix');
         
-        // Subscribe to state topics for existing devices
-        $devices = $this->GetHaDeviceInstances();
-        foreach ($devices as $entityId => $instanceId) {
+        // Subscribe to state topics for all managed entities (HaDevice and HaMultiEntityDevice)
+        $entities = $this->GetAllManagedEntities();
+        foreach ($entities as $entityId => $instanceId) {
             $stateTopic = $discoveryPrefix . '/' . str_replace('.', '/', $entityId) . '/state';
             $this->SubscribeTopic($stateTopic);
         }
         
         // Store subscribed topics
         $topics = [];
-        foreach (array_keys($devices) as $eId) {
+        foreach (array_keys($entities) as $eId) {
             $topics[] = $discoveryPrefix . '/' . str_replace('.', '/', $eId) . '/state';
         }
         
@@ -423,15 +427,25 @@ class HaBridge extends IPSModule
                 if (isset($payload['attributes']) && is_array($payload['attributes']) && isset($payload['attributes']['device_class'])) {
                     $deviceClass = (string)$payload['attributes']['device_class'];
                 }
-                $presentation = $this->CreateBinarySensorValuePresentationByDeviceClass($deviceClass);
-                if (!empty($presentation)) {
-                    IPS_SetVariableCustomPresentation($statusVarId, $presentation);
-                    if (isset($presentation['ICON'])) {
-                        IPS_SetIcon($statusVarId, (string)$presentation['ICON']);
+                // Only set presentation if none exists yet
+                $meta = @IPS_GetVariable($statusVarId);
+                $hasCustom = is_array($meta) && isset($meta['VariableCustomPresentation']) && is_array($meta['VariableCustomPresentation']) && !empty($meta['VariableCustomPresentation']);
+                if (!$hasCustom) {
+                    $presentation = $this->CreateBinarySensorValuePresentationByDeviceClass($deviceClass);
+                    if (!empty($presentation)) {
+                        IPS_SetVariableCustomPresentation($statusVarId, $presentation);
+                        // Set icon only if none set yet
+                        if (isset($presentation['ICON'])) {
+                            $obj = @IPS_GetObject($statusVarId);
+                            $currentIcon = is_array($obj) ? ($obj['ObjectIcon'] ?? '') : '';
+                            if ($currentIcon === '') {
+                                IPS_SetIcon($statusVarId, (string)$presentation['ICON']);
+                            }
+                        }
+                    } else {
+                        // Fallback: Value presentation only
+                        IPS_SetVariableCustomPresentation($statusVarId, ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']);
                     }
-                } else {
-                    // Fallback: Value presentation only
-                    IPS_SetVariableCustomPresentation($statusVarId, ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}']);
                 }
             }
             
@@ -536,6 +550,39 @@ class HaBridge extends IPSModule
         }
         
         return $devices;
+    }
+
+    /**
+     * Collect all managed entities across HaDevice and HaMultiEntityDevice instances
+     * Returns map entity_id => instanceId (owning instance)
+     */
+    protected function GetAllManagedEntities(): array
+    {
+        $out = $this->GetHaDeviceInstances();
+        // Include HaMultiEntityDevice entities
+        $multiIds = @IPS_GetInstanceListByModuleID('{5E0B3C3A-FD10-4E32-95D3-1B4EAA9A7C77}');
+        if (is_array($multiIds)) {
+            foreach ($multiIds as $id) {
+                if (!IPS_InstanceExists($id)) {
+                    continue;
+                }
+                try {
+                    $j = @IPS_GetProperty($id, 'entities');
+                    $arr = json_decode((string)$j, true);
+                    if (is_array($arr)) {
+                        foreach ($arr as $e) {
+                            $eid = isset($e['entity_id']) ? (string)$e['entity_id'] : '';
+                            if ($eid !== '') {
+                                $out[$eid] = $id;
+                            }
+                        }
+                    }
+                } catch (Exception $e) {
+                    // ignore
+                }
+            }
+        }
+        return $out;
     }
     
     // Auto-Discovery run method removed; realtime state updates are always active.
