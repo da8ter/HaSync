@@ -15,13 +15,13 @@
     "actions": [
         {
             "type": "ExpansionPanel",
-            "caption": "Einzel Entitäten Geräte",
+            "caption": "Einzel-Entität-Geräte erstellen",
             "expanded": true,
             "items": [
                 {
                     "type": "Configurator",
                     "name": "DeviceConfigurator",
-                    "caption": "Einzel EntitätenGeräte",
+                    "caption": "Einzel-Entität-Gerät erstellen",
                     "rowCount": 10,
                     "delete": false,
                     "sort": {
