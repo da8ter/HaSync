@@ -108,7 +108,30 @@ class HaMultiEntityDevice extends IPSModule
                         ];
                     }
                     $this->SendDebug('ApplyChanges', 'Setting presentation for ' . $entityId . ' (' . $entityDomain . '): ' . json_encode($presentation), 0);
-                    IPS_SetVariableCustomPresentation($varId, $presentation);
+                    // Remove keys not supported by IPS_SetVariableCustomPresentation (e.g., ICON)
+                    $presToSet = $presentation;
+                    if (is_array($presToSet) && array_key_exists('ICON', $presToSet)) {
+                        unset($presToSet['ICON']);
+                    }
+                    // If Value presentation, remove SUFFIX/DIGITS which are not supported here
+                    if (is_array($presToSet)
+                        && isset($presToSet['PRESENTATION'])
+                        && $presToSet['PRESENTATION'] === '{3319437D-7CDE-699D-750A-3C6A3841FA75}') {
+                        unset($presToSet['SUFFIX'], $presToSet['DIGITS']);
+                        // Sanitize OPTIONS: only keep Value and Caption
+                        if (isset($presToSet['OPTIONS']) && is_array($presToSet['OPTIONS'])) {
+                            $clean = [];
+                            foreach ($presToSet['OPTIONS'] as $opt) {
+                                if (!is_array($opt)) { continue; }
+                                $clean[] = [
+                                    'Value' => isset($opt['Value']) ? (bool)$opt['Value'] : false,
+                                    'Caption' => (string)($opt['Caption'] ?? '')
+                                ];
+                            }
+                            $presToSet['OPTIONS'] = $clean;
+                        }
+                    }
+                    IPS_SetVariableCustomPresentation($varId, $presToSet);
                     // Set icon right away if presentation suggests one and none is set yet
                     $objSet = @IPS_GetObject($varId);
                     $currentIconSet = is_array($objSet) ? ($objSet['ObjectIcon'] ?? '') : '';
@@ -324,7 +347,28 @@ class HaMultiEntityDevice extends IPSModule
                         ]
                     ];
                 }
-                IPS_SetVariableCustomPresentation($varId, $p);
+                // Remove unsupported keys (e.g., ICON) before setting presentation
+                $presToSet = $p;
+                if (is_array($presToSet) && array_key_exists('ICON', $presToSet)) {
+                    unset($presToSet['ICON']);
+                }
+                if (is_array($presToSet)
+                    && isset($presToSet['PRESENTATION'])
+                    && $presToSet['PRESENTATION'] === '{3319437D-7CDE-699D-750A-3C6A3841FA75}') {
+                    unset($presToSet['SUFFIX'], $presToSet['DIGITS']);
+                    if (isset($presToSet['OPTIONS']) && is_array($presToSet['OPTIONS'])) {
+                        $clean = [];
+                        foreach ($presToSet['OPTIONS'] as $opt) {
+                            if (!is_array($opt)) { continue; }
+                            $clean[] = [
+                                'Value' => isset($opt['Value']) ? (bool)$opt['Value'] : false,
+                                'Caption' => (string)($opt['Caption'] ?? '')
+                            ];
+                        }
+                        $presToSet['OPTIONS'] = $clean;
+                    }
+                }
+                IPS_SetVariableCustomPresentation($varId, $presToSet);
                 // Icon only if none set
                 $obj = IPS_GetObject($varId);
                 $currentIcon = $obj['ObjectIcon'] ?? '';
@@ -352,6 +396,16 @@ class HaMultiEntityDevice extends IPSModule
         // Keys to skip (metadata and slider config)
         $skip = ['friendly_name','editable','initial','max','min','mode','step','unit_of_measurement'];
         $entityIdent = $this->BuildIdentForEntity($entityId); // e.g. STAT_sensor_xxx
+        // Determine base position from the entity's Status variable
+        $statusId = @$this->GetIDForIdent($entityIdent);
+        $basePos = 0;
+        if ($statusId !== false && $statusId > 0) {
+            $obj = @IPS_GetObject($statusId);
+            if (is_array($obj) && isset($obj['ObjectPosition'])) {
+                $basePos = (int)$obj['ObjectPosition'];
+            }
+        }
+        $offset = 1;
         foreach ($attributes as $key => $value) {
             if (in_array($key, $skip, true)) {
                 continue;
@@ -379,12 +433,41 @@ class HaMultiEntityDevice extends IPSModule
                 }
             }
 
-            // Create or maintain
-            $this->MaintainVariable($ident, (string)$key, $varType, $profile, 0, true);
-            $varId = $this->GetIDForIdent($ident);
-            if ($varId !== false) {
-                @IPS_SetHidden($varId, true);
+            // Find existing attribute variable under the Status variable
+            $varId = ($statusId > 0) ? @IPS_GetObjectIDByIdent($ident, $statusId) : false;
+            if ($varId === false || $varId <= 0 || !IPS_VariableExists($varId)) {
+                // Create variable manually to place it under the Status variable
+                $varId = @IPS_CreateVariable($varType);
+                if ($varId === false) {
+                    continue;
+                }
+                @IPS_SetParent($varId, ($statusId > 0 ? $statusId : $this->InstanceID));
+                @IPS_SetIdent($varId, $ident);
+                @IPS_SetName($varId, (string)$key);
+                if ($profile !== '') {
+                    @IPS_SetVariableCustomProfile($varId, $profile);
+                }
+            } else {
+                // Ensure type/profile match; recreate if type changed
+                $v = @IPS_GetVariable($varId);
+                if (is_array($v) && isset($v['VariableType']) && $v['VariableType'] !== $varType) {
+                    @IPS_DeleteVariable($varId);
+                    $varId = @IPS_CreateVariable($varType);
+                    @IPS_SetParent($varId, ($statusId > 0 ? $statusId : $this->InstanceID));
+                    @IPS_SetIdent($varId, $ident);
+                    @IPS_SetName($varId, (string)$key);
+                }
+                if ($profile !== '') {
+                    @IPS_SetVariableCustomProfile($varId, $profile);
+                } else {
+                    // Clear any previous custom profile if now empty
+                    @IPS_SetVariableCustomProfile($varId, '');
+                }
             }
+            @IPS_SetHidden($varId, true);
+            // Place directly below the corresponding Status variable (ordering among siblings)
+            @IPS_SetPosition($varId, $offset);
+            $offset++;
 
             // Set value by type
             switch ($varType) {
@@ -393,40 +476,64 @@ class HaMultiEntityDevice extends IPSModule
                     if (is_string($value)) {
                         $boolValue = in_array(strtolower((string)$value), ['true','on','1','yes'], true);
                     }
-                    $this->SetValue($ident, (bool)$boolValue);
+                    @SetValue($varId, (bool)$boolValue);
                     break;
                 case VARIABLETYPE_INTEGER:
-                    $this->SetValue($ident, (int)$value);
+                    @SetValue($varId, (int)$value);
                     break;
                 case VARIABLETYPE_FLOAT:
-                    $this->SetValue($ident, (float)$value);
+                    @SetValue($varId, (float)$value);
                     break;
                 case VARIABLETYPE_STRING:
                 default:
-                    $this->SetValue($ident, is_scalar($value) ? (string)$value : json_encode($value));
+                    @SetValue($varId, is_scalar($value) ? (string)$value : json_encode($value));
                     break;
             }
         }
     }
 
-/**
- * Remove all HAS_* variables created for attributes (across all entities)
- */
-protected function CleanupAdditionalVariables(): void
+    /**
+     * Remove all HAS_* variables created for attributes (across all entities)
+     */
+    protected function CleanupAdditionalVariables(): void
 {
     try {
+        // 1) Legacy cleanup: delete HAS_* directly under the instance
         $children = @IPS_GetChildrenIDs($this->InstanceID);
-        if (!is_array($children)) {
-            return;
-        }
-        foreach ($children as $id) {
-            $obj = @IPS_GetObject($id);
-            if (!is_array($obj) || ($obj['ObjectType'] ?? 0) !== 2 /* otVariable */) {
-                continue;
+        if (is_array($children)) {
+            foreach ($children as $id) {
+                $obj = @IPS_GetObject($id);
+                if (!is_array($obj)) {
+                    continue;
+                }
+                $ident = $obj['ObjectIdent'] ?? '';
+                if (is_string($ident) && strpos($ident, 'HAS_') === 0) {
+                    @IPS_DeleteVariable($id);
+                }
             }
-            $ident = $obj['ObjectIdent'] ?? '';
-            if (is_string($ident) && strpos($ident, 'HAS_') === 0) {
-                @IPS_DeleteVariable($id);
+        }
+
+        // 2) Cleanup under each Status variable (STAT_*)
+        if (is_array($children)) {
+            foreach ($children as $id) {
+                $obj = @IPS_GetObject($id);
+                if (!is_array($obj) || ($obj['ObjectType'] ?? 0) !== 2 /* otVariable */) {
+                    continue;
+                }
+                $ident = $obj['ObjectIdent'] ?? '';
+                if (is_string($ident) && strpos($ident, 'STAT_') === 0) {
+                    $sub = @IPS_GetChildrenIDs($id);
+                    if (!is_array($sub)) {
+                        continue;
+                    }
+                    foreach ($sub as $sid) {
+                        $sobj = @IPS_GetObject($sid);
+                        $sident = is_array($sobj) ? ($sobj['ObjectIdent'] ?? '') : '';
+                        if (is_string($sident) && strpos($sident, 'HAS_') === 0) {
+                            @IPS_DeleteVariable($sid);
+                        }
+                    }
+                }
             }
         }
     } catch (Exception $e) {
