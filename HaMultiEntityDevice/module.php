@@ -391,8 +391,8 @@ class HaMultiEntityDevice extends IPSModule
      */
     protected function ProcessAttributesForEntity(string $entityId, array $attributes): void
     {
-        // Keys to skip (metadata and slider config)
-        $skip = ['friendly_name','editable','initial','max','min','mode','step','unit_of_measurement'];
+        // Create variables for all attributes (no skip list)
+        $skip = [];
         $entityIdent = $this->BuildIdentForEntity($entityId); // e.g. STAT_sensor_xxx
         // Determine base position from the entity's Status variable
         $statusId = @$this->GetIDForIdent($entityIdent);
