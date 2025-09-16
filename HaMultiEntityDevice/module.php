@@ -118,6 +118,12 @@ class HaMultiEntityDevice extends IPSModule
 
         $this->WriteAttributeString('EntityIndex', json_encode($index));
         $this->WriteAttributeBoolean('Initialized', true);
+
+        // Ask parent (HaBridge) to refresh subscriptions
+        $this->SendDataToParent(json_encode([
+            'DataID' => '{B5C8F9A1-2D3E-4F50-8A6B-1C2D3E4F5A6B}',
+            'Action' => 'UpdateSubscriptions'
+        ]));
     }
 
     public function ReceiveData($JSONString)

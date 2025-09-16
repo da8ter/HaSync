@@ -335,6 +335,23 @@ class HaConfigurator extends IPSModule
             $form['actions'][$configuratorIndex]['values'] = $values;
         }
 
+        // Build selectable rows for multi-entity creation
+        $selectRows = [];
+        foreach ($devices as $device) {
+            if (!isset($device['entity_id'])) {
+                continue;
+            }
+            $entityId = (string)$device['entity_id'];
+            $friendlyName = (string)($device['attributes']['friendly_name'] ?? $entityId);
+            $domain = strpos($entityId, '.') !== false ? substr($entityId, 0, strpos($entityId, '.')) : '';
+            $selectRows[] = [
+                'select' => false,
+                'entity_id' => $entityId,
+                'friendly_name' => $friendlyName,
+                'domain' => $domain
+            ];
+        }
+
         // Append Multi-Entity Wizard action block if not present in form.json
         $form['actions'][] = [
             'type' => 'ExpansionPanel',
@@ -342,7 +359,23 @@ class HaConfigurator extends IPSModule
             'items' => [
                 [ 'type' => 'ValidationTextBox', 'name' => 'multi_group_name', 'caption' => 'Gruppenname' ],
                 [ 'type' => 'ValidationTextBox', 'name' => 'multi_entity_ids', 'caption' => 'Entity IDs (kommagetrennt oder je Zeile)' ],
-                [ 'type' => 'Button', 'caption' => 'Multi-Entitäten-Gerät erstellen', 'onClick' => 'HACO_CreateMultiEntityDevice($_IPS[\'TARGET\']);' ]
+                [
+                    'type' => 'List',
+                    'name' => 'multi_select_entities',
+                    'caption' => 'Entitäten auswählen',
+                    'rowCount' => 12,
+                    'add' => false,
+                    'delete' => false,
+                    'columns' => [
+                        [ 'name' => 'select', 'caption' => '', 'width' => '40px', 'edit' => [ 'type' => 'CheckBox' ] ],
+                        [ 'name' => 'entity_id', 'caption' => 'Entity ID', 'width' => '40%' ],
+                        [ 'name' => 'friendly_name', 'caption' => 'Name', 'width' => '40%' ],
+                        [ 'name' => 'domain', 'caption' => 'Domain', 'width' => '20%' ]
+                    ],
+                    'values' => $selectRows
+                ],
+                [ 'type' => 'Button', 'caption' => 'Aus Auswahl erstellen', 'onClick' => ' $sel=[]; foreach ($multi_select_entities as $row) { if (isset($row["select"]) && $row["select"]) { $sel[] = $row["entity_id"]; } } HACO_CreateMultiEntityDeviceFromSelection($_IPS["TARGET"], json_encode($sel), $multi_group_name);' ],
+                [ 'type' => 'Button', 'caption' => 'Aus Eingabefeld erstellen', 'onClick' => 'HACO_CreateMultiEntityDevice($_IPS[\'TARGET\']);' ]
             ]
         ];
 
@@ -394,6 +427,60 @@ class HaConfigurator extends IPSModule
             if (!$found) {
                 $this->SendDebug('CreateMultiEntityDevice', 'Entity not found in states: ' . $eid, 0);
             }
+        }
+
+        // Create instance
+        $moduleID = '{5E0B3C3A-FD10-4E32-95D3-1B4EAA9A7C77}'; // HaMultiEntityDevice
+        $instID = @IPS_CreateInstance($moduleID);
+        if ($instID === false) {
+            $this->LogMessage('Failed to create HaMultiEntityDevice instance', KL_ERROR);
+            return false;
+        }
+        if ($group !== '') {
+            @IPS_SetName($instID, $group);
+        }
+        @IPS_SetParent($instID, $this->InstanceID);
+        @IPS_SetProperty($instID, 'group_name', $group);
+        @IPS_SetProperty($instID, 'entities', json_encode($entities));
+        @IPS_ApplyChanges($instID);
+
+        // Clear input fields
+        $this->UpdateFormField('multi_group_name', 'value', '');
+        $this->UpdateFormField('multi_entity_ids', 'value', '');
+
+        return true;
+    }
+
+    /**
+     * Create a HaMultiEntityDevice instance from the selection list
+     */
+    public function CreateMultiEntityDeviceFromSelection(string $idsJSON, string $groupName = '')
+    {
+        $ids = json_decode($idsJSON, true);
+        if (!is_array($ids) || empty($ids)) {
+            $this->LogMessage('Selection is empty', KL_WARNING);
+            return false;
+        }
+        $group = trim($groupName) !== '' ? trim($groupName) : trim($this->ReadPropertyString('multi_group_name'));
+
+        // Resolve friendly names via /api/states
+        $states = $this->FetchDevices();
+        $entities = [];
+        foreach ($ids as $eid) {
+            $eid = (string)$eid;
+            if ($eid === '') {
+                continue;
+            }
+            $friendly = $eid;
+            if (is_array($states)) {
+                foreach ($states as $st) {
+                    if (($st['entity_id'] ?? '') === $eid) {
+                        $friendly = (string)($st['attributes']['friendly_name'] ?? $eid);
+                        break;
+                    }
+                }
+            }
+            $entities[] = [ 'entity_id' => $eid, 'alias' => $friendly, 'role' => 'other', 'section' => '' ];
         }
 
         // Create instance
