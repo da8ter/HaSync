@@ -128,7 +128,6 @@ class HaMultiEntityDevice extends IPSModule
                     }
                     // For Value presentation, also remove SUFFIX/DIGITS if present
                     if (isset($presForIPS['PRESENTATION']) && $presForIPS['PRESENTATION'] === '{3319437D-7CDE-699D-750A-3C6A3841FA75}') {
-                        unset($presForIPS['SUFFIX'], $presForIPS['DIGITS']);
                         // Convert OPTIONS to JSON string format as expected by IPS
                         if (isset($presForIPS['OPTIONS']) && is_array($presForIPS['OPTIONS'])) {
                             $presForIPS['OPTIONS'] = json_encode($presForIPS['OPTIONS']);
@@ -360,7 +359,6 @@ class HaMultiEntityDevice extends IPSModule
                 }
                 // For Value presentation, also remove SUFFIX/DIGITS if present
                 if (isset($presForIPS['PRESENTATION']) && $presForIPS['PRESENTATION'] === '{3319437D-7CDE-699D-750A-3C6A3841FA75}') {
-                    unset($presForIPS['SUFFIX'], $presForIPS['DIGITS']);
                     // Convert OPTIONS to JSON string format as expected by IPS
                     if (isset($presForIPS['OPTIONS']) && is_array($presForIPS['OPTIONS'])) {
                         $presForIPS['OPTIONS'] = json_encode($presForIPS['OPTIONS']);
