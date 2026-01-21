@@ -4,25 +4,22 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![IP-Symcon](https://img.shields.io/badge/IP--Symcon-7.1%2B-orange)](https://symcon.de)
 
-Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon mit automatischer Geräteerkennung, Echtzeitaktualisierung und bidirektionaler Kommunikation.
+Ein Modul zur Integration von Home Assistant in IP-Symcon mit automatischer Geräteerkennung, Echtzeitaktualisierung und bidirektionaler Kommunikation.
 
 ## 🌟 Features
 
-- ✅ **Automatische Geräteerkennung** über REST API Configurator
+- ✅ **Automatische HA Geräteerkennung** über REST API Configurator
 - ✅ **Echtzeitaktualisierung** über MQTT
 - ✅ **Intelligente Typerkennung** für verschiedene Home Assistant Entitäten
 - ✅ **Bidirektionale Kommunikation** - Steuern von HA-Geräten aus IP-Symcon
-- ✅ **Saubere Architektur** mit getrennten Modulen für verschiedene Aufgaben
-- ✅ **Zentraler REST-Helper** (`libs/HaRestHelper.php`) für alle Home-Assistant API Calls
 - ✅ **Icon-Mapping** von Home Assistant zu IP-Symcon
-- ✅ **Moderne Variablen-Präsentationen** (z. B. Schalter/Slider) passend zur Entität
+- ✅ **Variablen-Präsentationen** (z. B. Schalter/Slider) passend zur Entität
 - ✅ **Zweisprachige Lokalisierung** (DE/EN)
 
 ## 📦 Module
 
 ### HaConfigurator - REST API Configurator
 **Typ:** Configurator (Typ 4)  
-**GUID:** `{32D99DCD-A530-4907-3FB0-44D7D472771D}`
 
 - Verbindung zu Home Assistant über REST API
 - Automatische Geräteerkennung und Configurator
@@ -30,7 +27,6 @@ Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon m
 
 ### HaDevice - Entitäts-Repräsentation
 **Typ:** Device (Typ 3)  
-**GUID:** `{8DF4E3B9-1FF2-B0B3-649E-117AC0B355FD}`
 
 - Repräsentiert einzelne Home Assistant Entitäten
 - Automatische Variablenerstellung mit intelligenter Typerkennung
@@ -39,7 +35,6 @@ Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon m
 
 ### HaMultiEntityDevice - Mehrere Entitäten in einer Instanz
 **Typ:** Device (Typ 3)  
-**GUID:** `{5E0B3C3A-FD10-4E32-95D3-1B4EAA9A7C77}`
 
 - Bündelt mehrere Home Assistant Entitäten in einer Instanz
 - Erzeugt pro Entität eine Status-Variable (`STAT_*`)
@@ -47,11 +42,8 @@ Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon m
 
 ### HaBridge - MQTT Echtzeit-Integration
 **Typ:** Splitter (Typ 2)  
-**GUID:** `{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}`
 
 - Echtzeitaktualisierung über MQTT
-- Automatische Erkennung bestehender HaDevice Instanzen
-- Diagnose-Kachel (HTML-SDK) mit Cache-Übersicht und Tools (Resubscribe/Cache leeren)
 - Zentrale Konfiguration für Home Assistant URL und Token
 
 
@@ -95,7 +87,7 @@ Hinweis: Es wird ausschließlich der IP-Symcon MQTT Server als Broker verwendet.
 5. Speichern/Absenden. Die Integration sollte jetzt verbunden sein.
 6. In IP‑Symcon die **HaBridge**-Instanz erstellen/prüfen (siehe unten):
    - **Instanz hinzufügen** → **HaBridge**
-   - **Parent**: den **MQTT Server** auswählen
+   - **Schnittstelle**: den **MQTT Server** auswählen
    - **Home Assistant URL** (z. B. `http://192.168.1.100:8123`)
    - **Home Assistant Token** (Long-lived Access Token)
    - „Discovery Prefix“: `homeassistant` (Standard)
@@ -149,11 +141,6 @@ Das HaDevice Modul erkennt automatisch den korrekten Variablentyp:
 
 ## 🔄 Funktionsweise
 
-### REST API Polling (HaConfigurator)
-- Regelmäßige Abfrage aller Entitätszustände
-- Standard: 30 Sekunden Intervall
-- Zuverlässig, aber nicht Echtzeit
-
 ### MQTT Echtzeit-Updates (HaBridge)
 - Sofortige Aktualisierung bei Änderungen
 - Automatische Weiterleitung an HaDevice Instanzen
@@ -171,58 +158,6 @@ Das HaDevice Modul erkennt automatisch den korrekten Variablentyp:
 | 104 | ⚠️ Fehler | Keine Verbindung zu Home Assistant |
 | 201 | ❌ Fehler | Konfigurationsfehler |
 | 202 | ⚠️ Warnung | Teilweise Funktionalität |
-
-## 🛠️ Troubleshooting
-
-### Instanz-Erstellung im Configurator
-- HaBridge Instanz vorhanden und korrekt verbunden (Parent: MQTT Server)
-- Module aktualisieren/Kernel neu laden und anschließend erneut im Configurator erstellen
-
-### Verbindungsprobleme
-- Home Assistant URL und Token prüfen
-- Firewall-Einstellungen überprüfen
-- Home Assistant API-Zugriff testen: `curl -H "Authorization: Bearer YOUR_TOKEN" http://YOUR_HA_URL/api/states`
-
-### MQTT funktioniert nicht
-- MQTT Server Modul korrekt konfiguriert?
-- Home Assistant MQTT Integration aktiv?
-
-### Variablen werden nicht erstellt
-- Entität in Home Assistant verfügbar?
-- HaDevice Status-Variable vorhanden?
-- Logs in IP-Symcon prüfen
-
-## 🔗 Links
-
-- [Home Assistant](https://www.home-assistant.io/)
-- [IP-Symcon](https://www.symcon.de/)
-- [MQTT Integration Guide](https://www.home-assistant.io/integrations/mqtt/)
-
-## 📚 Technische Dokumentation
-
-### Datenfluss-Diagramm
-Detaillierte Informationen zum Datenfluss zwischen den Modulen findest du in [DATAFLOW.md](DATAFLOW.md).
-
-### Bugfixes & Verbesserungen
-Alle behobenen Probleme und Verbesserungen sind in [BUGFIXES.md](BUGFIXES.md) dokumentiert.
-
-### Architektur-Übersicht
-```
-┌─────────────────┐
-│  HaConfigurator │  ← REST API (Konfiguration & Geräteerkennung)
-└─────────────────┘
-
-┌─────────────────┐
-│    HaBridge     │  ← MQTT Gateway (Broadcast-System)
-│  (Splitter)     │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    │         │
-┌───▼───┐ ┌──▼──────────────────┐
-│HaDevice│ │HaMultiEntityDevice │  ← Geräte-Instanzen
-└────────┘ └─────────────────────┘
-```
 
 ## 📄 Lizenz
 
