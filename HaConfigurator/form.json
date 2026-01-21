@@ -1,42 +1,36 @@
 {
-    "elements": [
-        {
-            "type": "ValidationTextBox",
-            "name": "ha_url",
-            "caption": "Home Assistant URL"
-        },
-        {
-            "type": "PasswordTextBox",
-            "name": "ha_token",
-            "caption": "Home Assistant Token"
-        }
-        
-    ],
     "actions": [
         {
-            "type": "Configurator",
-            "name": "DeviceConfigurator",
-            "caption": "Geräte",
-            "rowCount": 10,
-            "delete": false,
-            "sort": {
-                "column": "friendly_name",
-                "direction": "ascending"
-            },
-            "columns": [
-                {"caption": "Entity ID", "name": "entity_id", "width": "30%"},
-                {"caption": "Name", "name": "friendly_name", "width": "40%"},
-                {"caption": "Status", "name": "state", "width": "30%"}
-            ],
-            "values": [],
-            "create": [
+            "type": "ExpansionPanel",
+            "caption": "Einzel-Entität-Geräte erstellen",
+            "expanded": true,
+            "items": [
                 {
-                    "moduleID": "{8DF4E3B9-1FF2-B0B3-649E-117AC0B355FD}",
-                    "configuration": {
-                        "entity_id": "{entity_id}",
-                        "parent_id": "$_IPS['TARGET']"
+                    "type": "Configurator",
+                    "name": "DeviceConfigurator",
+                    "caption": "Einzel-Entität-Gerät erstellen",
+                    "rowCount": 10,
+                    "delete": false,
+                    "sort": {
+                        "column": "friendly_name",
+                        "direction": "ascending"
                     },
-                    "name": "{friendly_name}"
+                    "columns": [
+                        {"caption": "Entity ID", "name": "entity_id", "width": "30%"},
+                        {"caption": "Name", "name": "friendly_name", "width": "30%"},
+                        {"caption": "Status", "name": "state", "width": "auto"}
+                    ],
+                    "values": [],
+                    "create": [
+                        {
+                            "moduleID": "{8DF4E3B9-1FF2-B0B3-649E-117AC0B355FD}",
+                            "configuration": {
+                                "entity_id": "{entity_id}",
+                                "parent_id": "$_IPS['TARGET']"
+                            },
+                            "name": "{friendly_name}"
+                        }
+                    ]
                 }
             ]
         }

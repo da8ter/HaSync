@@ -1,0 +1,14 @@
+{
+    "id": "{5E0B3C3A-FD10-4E32-95D3-1B4EAA9A7C77}",
+    "name": "HaMultiEntityDevice",
+    "type": 3,
+    "vendor": "",
+    "aliases": [],
+    "parentRequirements": [
+        "{B5C8F9A1-2D3E-4F50-8A6B-1C2D3E4F5A6B}"
+    ],
+    "childRequirements": [],
+    "implemented": ["{C78CF679-C945-4AEE-BE58-A5616D85A6B8}"],
+    "prefix": "HAMED",
+    "url": "https://github.com/da8ter/HaSync.git"
+}

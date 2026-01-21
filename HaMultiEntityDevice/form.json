@@ -1,0 +1,19 @@
+{
+  "elements": [
+    { "type": "CheckBox", "name": "create_additional_vars", "caption": "Zusätzliche Attribut-Variablen erstellen" },
+    {
+      "type": "List",
+      "name": "entities",
+      "caption": "Entitäten",
+      "rowCount": 8,
+      "add": true,
+      "delete": true,
+      "columns": [
+        { "name": "entity_id", "caption": "Entity ID", "width": "50%", "add": "", "edit": { "type": "ValidationTextBox" } },
+        { "name": "alias", "caption": "Alias", "width": "50%", "add": "", "edit": { "type": "ValidationTextBox" } }
+      ],
+      "values": []
+    }
+  ],
+  "status": []
+}

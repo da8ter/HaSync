@@ -4,7 +4,7 @@
     "author": "Stephan Sprick",
     "url": "https://github.com/da8ter/HaSync",
     "compatibility": {
-        "version": "8.0"
+        "version": "8.1"
     },
     "modules": {
         "HaConfigurator": {
@@ -15,9 +15,12 @@
         },
         "HaBridge": {
             "file": "HaBridge/module.php"
+        },
+        "HaMultiEntityDevice": {
+            "file": "HaMultiEntityDevice/module.php"
         }
     },
-    "version": "0.1.0",
+    "version": "0.1.1",
     "build": 0,
     "date": 0
 }

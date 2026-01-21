@@ -1,5 +1,4 @@
 # HaConfigurator
-Beschreibung des Moduls.
 
 ### Inhaltsverzeichnis
 
@@ -16,7 +15,7 @@ Beschreibung des Moduls.
 * Stellt die Verbindung zu Home Assistant per REST API her.
 * Listet alle Entitäten in einem Configurator auf (inkl. Name und Status).
 * Erstellt auf Wunsch automatisch `HaDevice`-Instanzen für ausgewählte Entitäten.
-* Verwaltet Verbindungsparameter (URL, Long-lived Access Token).
+* Unterstützt die Erstellung eines `HaMultiEntityDevice` aus einer Auswahl.
 
 ### 2. Voraussetzungen
 
@@ -25,8 +24,8 @@ Beschreibung des Moduls.
 
 ### 3. Software-Installation
 
-* Über den Module Store das 'HaConfigurator'-Modul installieren.
-* Alternativ über das Module Control folgende URL hinzufügen
+* Über den Module Store **exakt** nach `HaSync` suchen und das Modul installieren.
+* Alternativ über das Module Control folgende URL hinzufügen: `https://github.com/da8ter/HaSync.git`
 
 ### 4. Einrichten der Instanzen in IP-Symcon
 
@@ -37,9 +36,8 @@ __Konfigurationsseite__:
 
 Name     | Beschreibung
 -------- | ------------------
-Home Assistant URL | Basis-URL von Home Assistant (z. B. `http://192.168.1.10:8123`)
-Home Assistant Token | Long-lived Access Token aus dem HA-Profil
 Geräte (Configurator) | Liste der gefundenen Entitäten mit Möglichkeit zur Erstellung von `HaDevice`-Instanzen
+Multi-Entitäten-Gerät erstellen | Assistent zum Erstellen eines `HaMultiEntityDevice` aus mehreren Entitäten
 
 ### 5. Statusvariablen und Profile
 
@@ -52,20 +50,3 @@ Dieses Modul legt keine eigenen Statusvariablen an.
 #### Profile
 
 Keine (nicht zutreffend)
-
-### 6. Visualisierung
-
-Der Configurator erscheint im Formular der Instanz. Über die Spalte „Erstellen“ können `HaDevice`-Instanzen pro Entität angelegt werden.
-
-### 7. PHP-Befehlsreferenz
-
-Die nachfolgenden Befehle stehen (u. a.) zur Verfügung:
-
-- `mixed HACO_FetchDevices(integer $InstanzID);`
-  Ruft alle Entitäten aus Home Assistant ab (entspricht `/api/states`).
-
-- `mixed HACO_GetEntityState(integer $InstanzID, string $EntityID);`
-  Ruft den Zustand einer einzelnen Entität ab (entspricht `/api/states/{entity_id}`).
-
-- `void HACO_UpdateConfigurator(integer $InstanzID);`
-  Aktualisiert die Anzeige des Configurators in der Instanz.

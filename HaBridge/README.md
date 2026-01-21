@@ -8,42 +8,60 @@ Home Assistant MQTT Integration für Echtzeit-Updates
 3. [Software-Installation](#3-software-installation)
 4. [Einrichten der Instanzen in IP-Symcon](#4-einrichten-der-instanzen-in-ip-symcon)
 5. [Home Assistant Konfiguration](#5-home-assistant-konfiguration)
-6. [Statusvariablen und Profile](#6-statusvariablen-und-profile)
-7. [PHP-Befehlsreferenz](#7-php-befehlsreferenz)
+6. [Datenfluss & Topic-Struktur](#6-datenfluss--topic-struktur)
+
 
 ### 1. Funktionsumfang
 
 * Echtzeit-Updates von Home Assistant über MQTT
 * Bidirektionale Kommunikation mit Home Assistant
-* Integration mit bestehenden HaConfigurator/HaDevice Instanzen
-* Unterstützung für alle Home Assistant Entity-Typen
+* Verteilt Updates an HaDevice / HaMultiEntityDevice Instanzen (DataFlow)
+* Optional: Service Calls an Home Assistant via REST (URL/Token werden in der HaBridge konfiguriert)
 
 ### 2. Voraussetzungen
 
 - IP-Symcon ab Version 7.1
-- MQTT Server/Broker (z.B. Mosquitto)
+- IP-Symcon **MQTT Server** Instanz (Broker)
 - Home Assistant mit MQTT Integration
-- HaConfigurator Modul (für Fallback-Funktionalität)
+- HaBridge mit konfigurierter Home Assistant URL/Token (nur für Service Calls)
 
 ### 3. Software-Installation
 
-* Über den Module Store das 'HaBridge'-Modul installieren.
-* Alternativ über das Module Control folgende URL hinzufügen
+* Über den Module Store **exakt** nach `HaSync` suchen und das Modul installieren.
+* Alternativ über das Module Control folgende URL hinzufügen: `https://github.com/da8ter/HaSync.git`
 
 ### 4. Einrichten der Instanzen in IP-Symcon
 
 Unter 'Instanz hinzufügen' kann das 'HaBridge'-Modul mithilfe des Schnellfilters gefunden werden.  
 - Weitere Informationen zum Hinzufügen von Instanzen in der [Dokumentation der Instanzen](https://www.symcon.de/service/dokumentation/konzepte/instanzen/#Instanz_hinzufügen)
 
+#### Physikalische Verbindung (wichtig)
+
+Die **HaBridge muss als Kind** des **IP-Symcon MQTT Server** verbunden sein.
+
+In der Regel passiert das über:
+- Erstellung unterhalb des MQTT Servers (empfohlen) oder
+- nachträgliches Verbinden (Kontextmenü: „Verbinden mit…“)
+
+Wenn kein Parent verbunden ist, bleibt die HaBridge auf Status **104**.
+
   __Konfigurationsseite__:
   
   Name                    | Beschreibung
   ----------------------- | ------------------
-  Discovery Prefix        | MQTT Topic Prefix (Standard: homeassistant). Muss mit `mqtt_statestream.base_topic` aus Home Assistant übereinstimmen.
+  Discovery Prefix        | MQTT Topic Prefix (Standard: `homeassistant`). Muss mit `mqtt_statestream.base_topic` aus Home Assistant übereinstimmen.
+  Home Assistant URL      | Basis-URL von Home Assistant (z. B. `http://192.168.1.100:8123`)
+  Home Assistant Token    | Long-lived Access Token aus dem HA Profil
+
+Technische Properties:
+- `ClientID` (Standard: `HaBridge_<InstanceID>`)
+- `ha_discovery_prefix` (Standard: `homeassistant`)
+- `ha_url`
+- `ha_token`
 
 ### 5. Home Assistant Konfiguration
  
- Es wird ausschließlich der IP‑Symcon MQTT Server als Broker genutzt. Die Einrichtung erfolgt in Home Assistant über die UI:
+Es wird der IP‑Symcon MQTT Server als Broker genutzt. Die Einrichtung erfolgt in Home Assistant über die UI:
  
  1. In Home Assistant: **Einstellungen** → **Geräte & Dienste** → **Integration hinzufügen** → „MQTT“ auswählen.
  2. Verbindungstyp: **Externer Broker** (HA verbindet sich zum IP‑Symcon MQTT Server).
@@ -58,7 +76,7 @@ Unter 'Instanz hinzufügen' kann das 'HaBridge'-Modul mithilfe des Schnellfilter
 
 #### MQTT State Stream (configuration.yaml) aktivieren
 
-Füge in der Home Assistant `configuration.yaml` folgenden Abschnitt ein, damit Zustände und Attribute per MQTT veröffentlicht werden. Der `base_topic` muss mit dem `Discovery Prefix` in der HaBridge übereinstimmen:
+Damit Zustände und Attribute per MQTT veröffentlicht werden, muss `mqtt_statestream` aktiv sein. Der `base_topic` muss mit dem `Discovery Prefix` in der HaBridge übereinstimmen.
 
 ```yaml
 mqtt_statestream:
@@ -69,46 +87,26 @@ mqtt_statestream:
 
 Starte anschließend Home Assistant neu.
 
-### 6. Statusvariablen und Profile
+### 6. Datenfluss & Topic-Struktur
 
-#### Statusvariablen
+#### Überblick
 
-Dieses Modul legt keine eigenen Statusvariablen an.
+- **MQTT → HaBridge:** Die HaBridge empfängt MQTT Nachrichten vom IP‑Symcon MQTT Server.
+- **HaBridge → Devices:** Updates werden per `SendDataToChildren` an HaDevice/HaMultiEntityDevice verteilt.
+- **Devices → HaBridge:** Geräte senden Aktionen wie Publish/Service Calls per `ForwardData` an die HaBridge.
 
-#### Profile
+#### Topic-Format
 
-Keine (nicht zutreffend)
+Die HaBridge arbeitet mit Topics unterhalb:
 
-### 7. PHP-Befehlsreferenz
+`<ha_discovery_prefix>/<domain>/<entity>/<key>`
 
-#### HAMQ_EnableMQTTForExistingDevices(integer $InstanzID)
-Aktiviert MQTT-Updates für alle bestehenden HaDevice-Instanzen (Realtime ist immer aktiv).
+Beispiele:
+- `homeassistant/input_boolean/testschalter/state`
+- `homeassistant/input_boolean/testschalter/attributes`
+- `homeassistant/light/wohnzimmer/brightness` (Einzel-Attribut)
 
-**Parameter:**
-- $InstanzID: Instanz-ID des HaBridge Moduls
-
-**Rückgabe:**
-- boolean: true bei Erfolg, false bei Fehler
-
-**Beispiel:**
-```php
-$result = HAMQ_EnableMQTTForExistingDevices(12345);
-if ($result) {
-    echo "MQTT erfolgreich für bestehende Geräte aktiviert";
-}
-```
-
-### Fehlerbehebung
-
-**Problem:** Keine MQTT Nachrichten werden empfangen
-- Prüfen Sie die MQTT Server Verbindung
-- Überprüfen Sie die Home Assistant MQTT Konfiguration
-- Kontrollieren Sie die Discovery Prefix Einstellung
-
-**Problem:** Geräte werden nicht automatisch erstellt
-- Stellen Sie sicher, dass eine HaConfigurator Instanz konfiguriert ist
-- Prüfen Sie die Home Assistant MQTT Konfiguration (Broker verbunden, Topics vorhanden)
-
-**Problem:** State Updates funktionieren nicht
-- Überprüfen Sie die MQTT Topic Struktur in Home Assistant
-- Kontrollieren Sie die Debug-Ausgaben in IP-Symcon
+Die HaBridge akzeptiert alle Subtopics (`/#`) je Entity und baut daraus Updates:
+- `state` wird als State-Update verarbeitet
+- `attributes` wird als Attribute-Update verarbeitet
+- andere Keys werden als Einzel-Attribute unter `attributes.<key>` verarbeitet

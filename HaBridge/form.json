@@ -2,23 +2,22 @@
     "elements": [
         {
             "type": "Label",
-            "caption": "Home Assistant MQTT Integration"
+            "caption": "Home Assistant Verbindung"
+        },
+        {
+            "type": "ValidationTextBox",
+            "name": "ha_url",
+            "caption": "Home Assistant URL"
+        },
+        {
+            "type": "PasswordTextBox",
+            "name": "ha_token",
+            "caption": "Home Assistant Token"
         },
         {
             "type": "ValidationTextBox",
             "name": "ha_discovery_prefix",
             "caption": "Discovery Prefix"
-        },
-        {
-            "type": "Label",
-            "caption": "MQTT Integration arbeitet direkt mit HaDevice Instanzen"
-        }
-    ],
-    "actions": [
-        {
-            "type": "Button",
-            "caption": "MQTT für bestehende Geräte aktivieren",
-            "onClick": "HAMQ_EnableMQTTForExistingDevices($id);"
         }
     ],
     "status": [

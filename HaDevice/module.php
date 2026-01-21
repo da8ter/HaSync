@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+ require_once dirname(__DIR__) . '/libs/HaRestHelper.php';
+
 /**
  * HaDevice - Home Assistant Device Integration für IP-Symcon
  * Repräsentiert eine einzelne Home Assistant Entität mit automatischer Variablenerstellung
@@ -23,27 +25,10 @@ class HaDevice extends IPSModule
         $this->RegisterPropertyBoolean('mqtt_enabled', false);
         $this->RegisterAttributeString('LastMQTTUpdate', '');
         $this->RegisterAttributeBoolean('Initialized', false);
-
-        // Create or reuse exactly one HaBridge (Splitter) for all HaDevices
+        
+        // Auto-connect to HaBridge parent if not already connected
         $bridgeModuleID = '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}';
-        $sem = 'HaSync_HaBridge_Create';
-        if (@IPS_SemaphoreEnter($sem, 10000)) {
-            try {
-                $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
-                if (is_array($bridges) && count($bridges) > 0) {
-                    // Reuse first existing HaBridge
-                    @IPS_ConnectInstance($this->InstanceID, (int)$bridges[0]);
-                } else {
-                    // Explicitly create one HaBridge and connect this device
-                    $bridgeId = IPS_CreateInstance($bridgeModuleID);
-                    @IPS_SetName($bridgeId, 'HaBridge');
-                    @IPS_ConnectInstance($this->InstanceID, $bridgeId);
-                }
-            } finally {
-                @IPS_SemaphoreLeave($sem);
-            }
-        } else {
-            // Fallback: do not create in contention; connect to existing if any
+        if (@IPS_GetInstance($this->InstanceID)['ConnectionID'] === 0) {
             $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
             if (is_array($bridges) && count($bridges) > 0) {
                 @IPS_ConnectInstance($this->InstanceID, (int)$bridges[0]);
@@ -52,8 +37,77 @@ class HaDevice extends IPSModule
     }
 
     /**
+     * Convert HA xy_color value (array or string) to Symcon JSON object string {"x":x,"y":y}
+     */
+    protected function ConvertXyFromHa($value): string
+    {
+        $x = 0.0; $y = 0.0;
+        if (is_array($value)) {
+            if (isset($value['x']) || isset($value['y'])) {
+                $x = (float)($value['x'] ?? 0);
+                $y = (float)($value['y'] ?? 0);
+            } else {
+                $vals = array_values($value);
+                if (count($vals) >= 2) {
+                    $x = (float)$vals[0];
+                    $y = (float)$vals[1];
+                }
+            }
+        } elseif (is_string($value)) {
+            $str = trim($value);
+            $decoded = json_decode($str, true);
+            if (is_array($decoded)) {
+                return $this->ConvertXyFromHa($decoded);
+            }
+            $str = trim($str, "[] \t\n\r");
+            $parts = preg_split('/\s*,\s*/', $str);
+            if (is_array($parts) && count($parts) >= 2) {
+                $x = (float)$parts[0];
+                $y = (float)$parts[1];
+            }
+        }
+        return json_encode(['x' => $x, 'y' => $y]);
+    }
+
+    /**
+     * Convert Symcon JSON object string {"x":x,"y":y} (or variants) to HA numeric array [x,y]
+     */
+    protected function ConvertXyToHa($value): array
+    {
+        $x = 0.0; $y = 0.0;
+        if (is_string($value)) {
+            $str = trim($value);
+            $decoded = json_decode($str, true);
+            if (is_array($decoded)) {
+                $value = $decoded;
+            } else {
+                $str = trim($str, "[] \t\n\r");
+                $parts = preg_split('/\s*,\s*/', $str);
+                if (is_array($parts) && count($parts) >= 2) {
+                    $x = (float)$parts[0];
+                    $y = (float)$parts[1];
+                    return [$x, $y];
+                }
+            }
+        }
+        if (is_array($value)) {
+            if (isset($value['x']) || isset($value['y'])) {
+                $x = (float)($value['x'] ?? 0);
+                $y = (float)($value['y'] ?? 0);
+            } else {
+                $vals = array_values($value);
+                if (count($vals) >= 2) {
+                    $x = (float)$vals[0];
+                    $y = (float)$vals[1];
+                }
+            }
+        }
+        return [$x, $y];
+    }
+
+    /**
      * Remove all additional variables created by this module (prefixed with HAS_)
-     * Keeps the main Status variable intact.
+     * Keeps the main Status variable and Color variables intact.
      */
     protected function CleanupAdditionalVariables(): void
     {
@@ -65,7 +119,13 @@ class HaDevice extends IPSModule
                     continue;
                 }
                 $ident = $obj['ObjectIdent'] ?? '';
+                $name = $obj['ObjectName'] ?? '';
                 if ($ident === 'Status') {
+                    continue;
+                }
+                // Keep rgb_color only (always auto-created)
+                $lowerName = strtolower($name);
+                if ($lowerName === 'rgb_color') {
                     continue;
                 }
                 if (strpos($ident, 'HAS_') === 0) {
@@ -77,15 +137,10 @@ class HaDevice extends IPSModule
         }
     }
 
-    /**
-     * Hint the management console to auto-create or attach a HaBridge as parent.
-     * See Symcon docs: GetCompatibleParents
-     */
     public function GetCompatibleParents()
     {
-        return '{"type": "require", "moduleIDs": ["{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}"]}';
+        return '{"type": "connect", "modules": [{"moduleID": "{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}", "configuration": {}}]}';
     }
-
 
     /**
      * Receive data from parent (HaBridge Splitter)
@@ -135,11 +190,38 @@ class HaDevice extends IPSModule
         parent::ApplyChanges();
         // Ensure instance is marked as created/active before any early returns
         $this->SetStatus(102);
+
+        $entityId = $this->ReadPropertyString('entity_id');
+        $connId = 0;
+        try {
+            $connId = (int)(@IPS_GetInstance($this->InstanceID)['ConnectionID'] ?? 0);
+        } catch (Exception $e) {
+            $connId = 0;
+        }
+        if ($connId === 0) {
+            $bridgeModuleID = '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}';
+            $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
+            if (is_array($bridges) && count($bridges) > 0) {
+                @IPS_ConnectInstance($this->InstanceID, (int)$bridges[0]);
+                try {
+                    $connId = (int)(@IPS_GetInstance($this->InstanceID)['ConnectionID'] ?? 0);
+                } catch (Exception $e) {
+                    $connId = 0;
+                }
+            }
+        }
+        if ($connId > 0 && $entityId !== '') {
+            @ $this->SendDataToParent(json_encode([
+                'DataID'   => '{B5C8F9A1-2D3E-4F50-8A6B-1C2D3E4F5A6B}',
+                'Action'   => 'UpdateSubscriptions',
+                'SenderID' => $this->InstanceID
+            ]));
+        }
+
         $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
         // If already initialized AND the user does NOT want additional variables,
         // do a minimal refresh (Status only) and exit.
         if ($this->ReadAttributeBoolean('Initialized') && !$createExtra) {
-            $entityId = $this->ReadPropertyString('entity_id');
             if ($entityId === '') {
                 return;
             }
@@ -160,8 +242,8 @@ class HaDevice extends IPSModule
             }
 
             // Update Status variable value and ensure presentation (no other variables)
-            if ($device !== null && isset($device['state']) && $this->GetIDForIdent('Status') !== false) {
-                $statusId = $this->GetIDForIdent('Status');
+            $statusId = @$this->GetIDForIdent('Status');
+            if ($device !== null && isset($device['state']) && $statusId !== false && IPS_VariableExists($statusId)) {
                 $varInfo = IPS_GetVariable($statusId);
                 $actualVarType = $varInfo['VariableType'];
                 $rawState = $device['state'];
@@ -184,7 +266,7 @@ class HaDevice extends IPSModule
                             $value = (string)$rawState;
                             break;
                     }
-                    $this->SetValue('Status', $value);
+                    $this->SetValueIfChangedByIdent('Status', $value);
                 }
                 // Do NOT re-apply presentation here. Respect user changes after initial creation.
             }
@@ -263,7 +345,7 @@ class HaDevice extends IPSModule
         } else {
             $this->MaintainVariable('Status', 'Status', $varType, $profile, 0, true);
         }
-        $this->SetValue('Status', $convertedValue);
+        $this->SetValueIfChangedByIdent('Status', $convertedValue);
         
         // Enable action for editable domains
         if ($editable) {
@@ -271,34 +353,55 @@ class HaDevice extends IPSModule
         }
         
         // Set icon on Status variable
-        // 1) Prefer explicit HA icon attribute when present
-        if (isset($device['attributes']['icon'])) {
-            $mappedIcon = $this->MapHAIconToSymcon($device['attributes']['icon']);
-            if ($mappedIcon !== '') {
-                $stateVarId = $this->GetIDForIdent('Status');
-                $obj = IPS_GetObject($stateVarId);
-                $currentIcon = $obj['ObjectIcon'] ?? '';
-                if ($currentIcon === '') {
-                    IPS_SetIcon($stateVarId, $mappedIcon);
+        $stateVarId = @$this->GetIDForIdent('Status');
+        if ($stateVarId !== false && IPS_VariableExists($stateVarId)) {
+            // 1) Prefer explicit HA icon attribute when present
+            if (isset($device['attributes']['icon'])) {
+                $mappedIcon = $this->MapHAIconToSymcon($device['attributes']['icon']);
+                if ($mappedIcon !== '') {
+                    $obj = IPS_GetObject($stateVarId);
+                    $currentIcon = $obj['ObjectIcon'] ?? '';
+                    if ($currentIcon === '') {
+                        IPS_SetIcon($stateVarId, $mappedIcon);
+                    }
                 }
-            }
-        } elseif ($entityDomain === 'binary_sensor') {
-            // 2) For binary_sensor: map device_class to an icon
-            $presentation = $this->CreateBinarySensorPresentationByDeviceClass($attributes);
-            if (!empty($presentation) && isset($presentation['ICON'])) {
-                $stateVarId = $this->GetIDForIdent('Status');
-                $obj = IPS_GetObject($stateVarId);
-                $currentIcon = $obj['ObjectIcon'] ?? '';
-                if ($currentIcon === '') {
-                    IPS_SetIcon($stateVarId, (string)$presentation['ICON']);
+            } elseif ($entityDomain === 'binary_sensor') {
+                // 2) For binary_sensor: map device_class to an icon
+                $presentation = $this->CreateBinarySensorPresentationByDeviceClass($attributes);
+                if (!empty($presentation) && isset($presentation['ICON'])) {
+                    $obj = IPS_GetObject($stateVarId);
+                    $currentIcon = $obj['ObjectIcon'] ?? '';
+                    if ($currentIcon === '') {
+                        IPS_SetIcon($stateVarId, (string)$presentation['ICON']);
+                    }
                 }
             }
         }
         
-        // Process attributes as variables (only when additional vars are enabled)
-        if ($createExtra && isset($device['attributes']) && is_array($device['attributes'])) {
+        // Process attributes as variables
+        if (isset($device['attributes']) && is_array($device['attributes'])) {
+            // Detect preferred color mode from existing variables or attributes
+            $preferredMode = $this->DetectPreferredColorModeFromInstanceOrAttributes($device['attributes']); // '', 'xy', 'hs', 'rgb'
+            $selectedColorKey = '';
+            if ($preferredMode === 'xy') {
+                $selectedColorKey = 'xy_color';
+            } elseif ($preferredMode === 'hs') {
+                $selectedColorKey = 'hs_color';
+            } elseif ($preferredMode === 'rgb') {
+                $selectedColorKey = 'rgb_color';
+            }
+
             foreach ($device['attributes'] as $key => $value) {
-                // Do not skip: create variables for all attributes when enabled
+                // Only rgb_color is always created; hs_color and xy_color are regular attributes
+                $lowerKey = strtolower($key);
+                $isColorVar = ($lowerKey === 'rgb_color');
+                // If a preferred mode exists, only that exact color variable is treated as "always create"
+                $shouldCreateColor = ($selectedColorKey !== '') ? ($lowerKey === $selectedColorKey) : $isColorVar;
+                
+                // Create color variables ALWAYS, other attributes only if create_additional_vars is enabled
+                if (!$createExtra && !$shouldCreateColor) {
+                    continue;
+                }
                 
                 $ident = 'HAS_' . preg_replace('/[^A-Za-z0-9_]/', '_', $key);
                 
@@ -312,27 +415,36 @@ class HaDevice extends IPSModule
                 $presentation = $varInfo[4] ?? [];
                 
                 // Register variable with presentation if available
-                if (!empty($presentation) && $varType === VARIABLETYPE_FLOAT) {
-                    // Use modern variable presentation for numeric attributes
-                    $this->MaintainVariable($ident, $key, VARIABLETYPE_FLOAT, '', 0, true);
+                if (!empty($presentation) && ($varType === VARIABLETYPE_FLOAT || $varType === VARIABLETYPE_STRING)) {
+                    // Use modern variable presentation for numeric/color attributes
+                    $this->MaintainVariable($ident, $key, $varType, '', 0, true);
                     $varId = $this->GetIDForIdent($ident);
+                    // Always clear any previous custom profile before setting presentation
+                    @IPS_SetVariableCustomProfile($varId, '');
+                    // Determine whether this is rgb_color (always gets presentation)
+                    $isExactColorVarPres = (strtolower($key) === 'rgb_color');
                     $varMeta = IPS_GetVariable($varId);
                     $hasCustom = isset($varMeta['VariableCustomPresentation'])
                         && is_array($varMeta['VariableCustomPresentation'])
                         && !empty($varMeta['VariableCustomPresentation']);
-                    if (!$hasCustom) {
+                    // For exact color variables: always set presentation to ensure color picker
+                    // For other attributes: only set if no custom presentation exists yet
+                    if ($isExactColorVarPres || !$hasCustom) {
                         IPS_SetVariableCustomPresentation($varId, $presentation);
                     }
                 } else {
                     $this->MaintainVariable($ident, $key, $varType, $profile, 0, true);
                 }
-                $this->SetValue($ident, $convertedValue);
+                $this->SetValueIfChangedByIdent($ident, $convertedValue);
                 
-                // Hide attribute variables - only Status variable should be visible
+                // Hide attribute variables - except selected color variable (visible and editable)
                 $varId = $this->GetIDForIdent($ident);
-                IPS_SetHidden($varId, true);
+                $isVisibleSelectedColor = ($selectedColorKey !== '') ? ($lowerKey === $selectedColorKey) : $isColorVar;
+                if (!$isVisibleSelectedColor) {
+                    IPS_SetHidden($varId, true);
+                }
                 
-                // Enable action for editable variables
+                // Enable action for editable variables (includes color variables)
                 if ($editable) {
                     $this->EnableAction($ident);
                 }
@@ -364,6 +476,9 @@ class HaDevice extends IPSModule
         if (strpos($entityId, '.') !== false) {
             $entityDomain = substr($entityId, 0, strpos($entityId, '.'));
         }
+
+        $varIdBefore = @$this->GetIDForIdent('Status');
+        $hadVarBefore = ($varIdBefore !== false && IPS_VariableExists($varIdBefore));
         
         // Determine type based on entity domain (no attributes available in fallback)
         $varInfo = $this->DetermineVariableType('status', null, $entityDomain, [], true);
@@ -390,8 +505,8 @@ class HaDevice extends IPSModule
                 $defaultPresentation = !empty($presentation) ? $presentation : [
                     // VARIABLE_PRESENTATION_SWITCH
                     'PRESENTATION' => '{60AE6B26-B3E2-BDB1-A3A1-BE232940664B}',
-                    'CAPTION_ON' => 'On',
-                    'CAPTION_OFF' => 'Off'
+                    'CAPTION_ON' => $this->Translate('On'),
+                    'CAPTION_OFF' => $this->Translate('Off')
                 ];
             } else {
                 $defaultPresentation = $presentation;
@@ -403,7 +518,10 @@ class HaDevice extends IPSModule
         } else {
             $this->MaintainVariable('Status', 'Status', $varType, $profile, 0, true);
         }
-        $this->SetValue('Status', $defaultValue);
+
+        if (!$hadVarBefore) {
+            $this->SetValueIfChangedByIdent('Status', $defaultValue);
+        }
         
         // Enable action for editable domains
         if ($editable && in_array($entityDomain, ['input_number', 'light', 'switch', 'input_boolean'])) {
@@ -464,17 +582,17 @@ class HaDevice extends IPSModule
                     if (is_string($value)) {
                         $boolValue = in_array(strtolower($value), ['true', 'on', '1', 'yes']);
                     }
-                    $this->SetValue($ident, $boolValue);
+                    $this->SetValueIfChangedByIdent($ident, $boolValue);
                     break;
                 case VARIABLETYPE_INTEGER:
-                    $this->SetValue($ident, (int)$value);
+                    $this->SetValueIfChangedByIdent($ident, (int)$value);
                     break;
                 case VARIABLETYPE_FLOAT:
-                    $this->SetValue($ident, (float)$value);
+                    $this->SetValueIfChangedByIdent($ident, (float)$value);
                     break;
                 case VARIABLETYPE_STRING:
                 default:
-                    $this->SetValue($ident, is_scalar($value) ? (string)$value : json_encode($value));
+                    $this->SetValueIfChangedByIdent($ident, is_scalar($value) ? (string)$value : json_encode($value));
                     break;
             }
         }
@@ -497,10 +615,13 @@ class HaDevice extends IPSModule
         
         try {
             $parentInfo = IPS_GetInstance($parentID);
+            if (($parentInfo['InstanceStatus'] ?? 0) !== 102) {
+                return ['url' => '', 'token' => ''];
+            }
             
             if ($parentInfo['ModuleInfo']['ModuleID'] === '{32D99DCD-A530-4907-3FB0-44D7D472771D}') {
-                $url = IPS_GetProperty($parentID, 'ha_url');
-                $token = IPS_GetProperty($parentID, 'ha_token');
+                $url = @IPS_GetProperty($parentID, 'ha_url');
+                $token = @IPS_GetProperty($parentID, 'ha_token');
                 
                 return [
                     'url' => is_string($url) ? $url : '',
@@ -522,34 +643,12 @@ class HaDevice extends IPSModule
         if ($haConfig['url'] === '' || $haConfig['token'] === '') {
             return null;
         }
-        
-        $apiUrl = rtrim($haConfig['url'], '/') . '/api/states';
-        
-        $headers = [
-            'Authorization: Bearer ' . $haConfig['token'],
-            'Content-Type: application/json'
-        ];
-        
-        $curl = curl_init();
-        curl_setopt_array($curl, [
-            CURLOPT_URL => $apiUrl,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_TIMEOUT => 10,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_SSL_VERIFYPEER => false
-        ]);
-        
-        $result = curl_exec($curl);
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        curl_close($curl);
-        
-        if ($result === false || $httpCode !== 200) {
+
+        $r = HaRestHelper::GetJson($haConfig['url'], $haConfig['token'], '/api/states', 10, 5);
+        if (!$r['ok'] || ($r['http'] ?? 0) !== 200 || !is_array($r['json'] ?? null)) {
             return null;
         }
-        
-        $devices = json_decode($result, true);
-        return is_array($devices) ? $devices : null;
+        return $r['json'];
     }
     
  /**
@@ -592,8 +691,8 @@ public function ProcessMQTTStateUpdate(string $data): bool
     }
 
     /* ---------- 1) Status-Variable (nur wenn 'state' vorhanden) ---------- */
-    if (array_key_exists('state', $payload) && $this->GetIDForIdent('Status') !== false) {
-        $statusId = $this->GetIDForIdent('Status');
+    $statusId = @$this->GetIDForIdent('Status');
+    if (array_key_exists('state', $payload) && $statusId !== false && IPS_VariableExists($statusId)) {
         $varInfo  = IPS_GetVariable($statusId);
 
         $raw    = $payload['state'];
@@ -633,7 +732,7 @@ public function ProcessMQTTStateUpdate(string $data): bool
                     $value = (string)$raw;
             }
             if (!$skipStateSet) {
-                $this->SetValue('Status', $value);
+                $this->SetValueIfChangedByIdent('Status', $value);
                 // Apply Value presentation with OPTIONS for binary_sensor (no switch)
                 $entityDomain = '';
                 $dot = strpos($entityIdBase, '.');
@@ -669,8 +768,8 @@ public function ProcessMQTTStateUpdate(string $data): bool
     $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
     if ($createExtra && isset($payload['attributes']) && is_array($payload['attributes']) && isset($payload['attributes']['icon'])) {
         $iconName = $this->MapHAIconToSymcon((string)$payload['attributes']['icon']);
-        $statusVarId = $this->GetIDForIdent('Status');
-        if ($iconName !== '' && $statusVarId !== false) {
+        $statusVarId = @$this->GetIDForIdent('Status');
+        if ($iconName !== '' && $statusVarId !== false && IPS_VariableExists($statusVarId)) {
             $obj = IPS_GetObject($statusVarId);
             $currentIcon = $obj['ObjectIcon'] ?? '';
             if ($currentIcon === '') {
@@ -692,9 +791,9 @@ public function ProcessMQTTStateUpdate(string $data): bool
             }
 
             $ident = 'HAS_' . preg_replace('/[^A-Za-z0-9_]/', '_', $key);
-            $varId = $this->GetIDForIdent($ident);
-            if ($varId === false) {                         // keine neue Variable anlegen
-                continue;
+            $varId = @$this->GetIDForIdent($ident);
+            if ($varId === false || !is_int($varId) || $varId <= 0 || !IPS_VariableExists($varId)) {
+                continue;                                    // Variable existiert nicht, kein Update
             }
 
             $varInfo = IPS_GetVariable($varId);
@@ -704,20 +803,28 @@ public function ProcessMQTTStateUpdate(string $data): bool
                         ? $val
                         : in_array(strtolower((string)$val),
                                   ['true','on','1','yes','home']);
-                    $this->SetValue($ident, $bool);
+                    $this->SetValueIfChangedByIdent($ident, $bool);
                     break;
 
                 case VARIABLETYPE_INTEGER:
-                    $this->SetValue($ident, (int)$val);
+                    $this->SetValueIfChangedByIdent($ident, (int)$val);
                     break;
 
                 case VARIABLETYPE_FLOAT:
-                    $this->SetValue($ident, (float)$val);
+                    $this->SetValueIfChangedByIdent($ident, (float)$val);
                     break;
 
                 default:
-                    $this->SetValue($ident,
-                        is_scalar($val) ? (string)$val : json_encode($val));
+                    // Normalize color values to Symcon JSON object form where required
+                    $lowerKey = strtolower($key);
+                    if ($lowerKey === 'rgb_color') {
+                        $this->SetValueIfChangedByIdent($ident, $this->ConvertRgbFromHa($val));
+                    } elseif ($lowerKey === 'xy_color') {
+                        $this->SetValueIfChangedByIdent($ident, $this->ConvertXyFromHa($val));
+                    } else {
+                        $this->SetValueIfChangedByIdent($ident,
+                            is_scalar($val) ? (string)$val : json_encode($val));
+                    }
             }
         }
     }
@@ -745,6 +852,46 @@ public function ProcessMQTTStateUpdate(string $data): bool
         $entityDomain = '';
         if (strpos($entityId, '.') !== false) {
             $entityDomain = substr($entityId, 0, strpos($entityId, '.'));
+        }
+        // Handle attribute actions: rgb_color
+        if ($ident === 'HAS_rgb_color') {
+            // Convert Symcon JSON {"r":x,"g":y,"b":z} (or variants) -> HA array [r,g,b]
+            $rgbArr = $this->ConvertRgbToHa($value);
+            if ($entityDomain === 'light') {
+                $service = 'light/turn_on';
+                $data = ['entity_id' => $entityId, 'rgb_color' => $rgbArr];
+                // Send to parent (HaBridge Splitter)
+                $this->SendDataToParent(json_encode([
+                    'DataID'   => '{B5C8F9A1-2D3E-4F50-8A6B-1C2D3E4F5A6B}',
+                    'Action'   => 'CallService',
+                    'Service'  => $service,
+                    'Data'     => $data,
+                    'SenderID' => $this->InstanceID
+                ]));
+                // Immediate local feedback in Symcon JSON format
+                $this->SetValueIfChangedByIdent($ident, $this->ConvertRgbFromHa($value));
+                return;
+            }
+        }
+        // Handle attribute actions: xy_color
+        if ($ident === 'HAS_xy_color') {
+            // Convert Symcon JSON {"x":x,"y":y} (or variants) -> HA array [x,y]
+            $xyArr = $this->ConvertXyToHa($value);
+            if ($entityDomain === 'light') {
+                $service = 'light/turn_on';
+                $data = ['entity_id' => $entityId, 'xy_color' => $xyArr];
+                // Send to parent (HaBridge Splitter)
+                $this->SendDataToParent(json_encode([
+                    'DataID'   => '{B5C8F9A1-2D3E-4F50-8A6B-1C2D3E4F5A6B}',
+                    'Action'   => 'CallService',
+                    'Service'  => $service,
+                    'Data'     => $data,
+                    'SenderID' => $this->InstanceID
+                ]));
+                // Immediate local feedback in Symcon JSON format
+                $this->SetValueIfChangedByIdent($ident, $this->ConvertXyFromHa($value));
+                return;
+            }
         }
         // Map action to Home Assistant service and data
         $service = '';
@@ -784,12 +931,12 @@ public function ProcessMQTTStateUpdate(string $data): bool
             ]));
             // Immediate local feedback
             if ($ident === 'Status') {
-                $this->SetValue($ident, $value);
+                $this->SetValueIfChangedByIdent($ident, $value);
             }
             return;
         }
         // Fallback: If we do not know how to map, at least set local value
-        $this->SetValue($ident, $value);
+        $this->SetValueIfChangedByIdent($ident, $value);
     }
     
     /**
@@ -834,30 +981,8 @@ public function ProcessMQTTStateUpdate(string $data): bool
             return false;
         }
         
-        $apiUrl = rtrim($haConfig['url'], '/') . '/api/services/' . $service;
-        
-        $headers = [
-            'Authorization: Bearer ' . $haConfig['token'],
-            'Content-Type: application/json'
-        ];
-        
-        $curl = curl_init();
-        curl_setopt_array($curl, [
-            CURLOPT_URL => $apiUrl,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => json_encode($data),
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_TIMEOUT => 10,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_SSL_VERIFYPEER => false
-        ]);
-        
-        $result = curl_exec($curl);
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        curl_close($curl);
-        
-        return $result !== false && $httpCode === 200;
+        $r = HaRestHelper::PostJson($haConfig['url'], $haConfig['token'], '/api/services/' . $service, $data, 10, 5);
+        return ($r['ok'] ?? false) && ((int)($r['http'] ?? 0) === 200);
     }
     
 /**
@@ -893,6 +1018,32 @@ protected function DetermineVariableType(
             'PRESENTATION' => '{497C4845-27FA-6E4F-AE37-5D951D3BDBF9}', // Date/Time
         ];
         return [$varType, $convertedValue, $profile, false, $presentation];
+    }
+
+    /* --- rgb_color: Always with Color Presentation --- */
+    $lowerAttrName = strtolower($attributeName);
+    if ($lowerAttrName === 'rgb_color') {
+        $varType = VARIABLETYPE_STRING;
+        $convertedValue = $this->ConvertRgbFromHa($value);
+        $editable = true;
+        $presentation = $this->CreateColorPresentation($attributeName);
+        
+        if (!empty($presentation)) {
+            return [$varType, $convertedValue, $profile, $editable, $presentation];
+        }
+    }
+    
+    /* --- xy_color and hs_color: Regular attributes with conversion but no special presentation --- */
+    if ($lowerAttrName === 'xy_color') {
+        $varType = VARIABLETYPE_STRING;
+        $convertedValue = $this->ConvertXyFromHa($value);
+        return [$varType, $convertedValue, $profile, false, []];
+    }
+    
+    if ($lowerAttrName === 'hs_color') {
+        $varType = VARIABLETYPE_STRING;
+        $convertedValue = is_scalar($value) ? (string)$value : json_encode($value);
+        return [$varType, $convertedValue, $profile, false, []];
     }
 
     /* --- Boolean-Domänen --- */
@@ -1011,8 +1162,8 @@ protected function DetermineVariableType(
                 $presentation = [
                     // VARIABLE_PRESENTATION_SWITCH
                     'PRESENTATION' => '{60AE6B26-B3E2-BDB1-A3A1-BE232940664B}',
-                    'CAPTION_ON' => 'On',
-                    'CAPTION_OFF' => 'Off',
+                    'CAPTION_ON' => $this->Translate('On'),
+                    'CAPTION_OFF' => $this->Translate('Off'),
                     'ICON_ON' => 'Bulb',
                     'ICON_OFF' => 'Bulb'
                 ];
@@ -1022,8 +1173,8 @@ protected function DetermineVariableType(
                 $presentation = [
                     // VARIABLE_PRESENTATION_SWITCH
                     'PRESENTATION' => '{60AE6B26-B3E2-BDB1-A3A1-BE232940664B}',
-                    'CAPTION_ON' => 'On',
-                    'CAPTION_OFF' => 'Off',
+                    'CAPTION_ON' => $this->Translate('On'),
+                    'CAPTION_OFF' => $this->Translate('Off'),
                     'ICON_ON' => 'Power',
                     'ICON_OFF' => 'Power'
                 ];
@@ -1033,8 +1184,8 @@ protected function DetermineVariableType(
                 $presentation = [
                     // VARIABLE_PRESENTATION_SWITCH
                     'PRESENTATION' => '{60AE6B26-B3E2-BDB1-A3A1-BE232940664B}',
-                    'CAPTION_ON' => 'True',
-                    'CAPTION_OFF' => 'False',
+                    'CAPTION_ON' => $this->Translate('True'),
+                    'CAPTION_OFF' => $this->Translate('False'),
                     'ICON_ON' => 'Information',
                     'ICON_OFF' => 'Information'
                 ];
@@ -1048,8 +1199,8 @@ protected function DetermineVariableType(
                 $presentation = [
                     // VARIABLE_PRESENTATION_SWITCH
                     'PRESENTATION' => '{60AE6B26-B3E2-BDB1-A3A1-BE232940664B}',
-                    'CAPTION_ON' => $entityDomain === 'device_tracker' ? 'Home' : 'Active',
-                    'CAPTION_OFF' => $entityDomain === 'device_tracker' ? 'Away' : 'Inactive',
+                    'CAPTION_ON' => $entityDomain === 'device_tracker' ? $this->Translate('Home') : $this->Translate('Active'),
+                    'CAPTION_OFF' => $entityDomain === 'device_tracker' ? $this->Translate('Away') : $this->Translate('Inactive'),
                     'ICON_ON' => $entityDomain === 'device_tracker' ? 'House' : 'Information',
                     'ICON_OFF' => $entityDomain === 'device_tracker' ? 'Door' : 'Information'
                 ];
@@ -1109,7 +1260,7 @@ protected function DetermineVariableType(
         $options = [
             [
                 'Value' => false,
-                'Caption' => $falseCaption,
+                'Caption' => $this->Translate($falseCaption),
                 'IconActive' => false,
                 'IconValue' => '',
                 'ColorActive' => false,
@@ -1117,7 +1268,7 @@ protected function DetermineVariableType(
             ],
             [
                 'Value' => true,
-                'Caption' => $trueCaption,
+                'Caption' => $this->Translate($trueCaption),
                 'IconActive' => false,
                 'IconValue' => '',
                 'ColorActive' => false,
@@ -1129,6 +1280,77 @@ protected function DetermineVariableType(
             'OPTIONS'      => $options,
             'ICON'         => $icon
         ];
+    }
+    
+    /**
+     * Create Color presentation based on attribute name
+     * Color variables are STRING type in IP-Symcon
+     * @param string $attributeName Name of the color attribute
+     * @return array Presentation array or empty if not a color attribute
+     */
+    protected function CreateColorPresentation(string $attributeName): array
+    {
+        $lowerName = strtolower($attributeName);
+        
+        // Standard preset colors (as JSON string for IPS)
+        $presets = json_encode([
+            ["Color" => 16007990],  // Rot
+            ["Color" => 16761095],  // Orange
+            ["Color" => 10233776],  // Gelb
+            ["Color" => 48340],     // Grün
+            ["Color" => 2201331],   // Blau
+            ["Color" => 15277667]   // Weiß
+        ]);
+        
+        // sRGB color space (as JSON string for IPS)
+        $colorSpace = json_encode([
+            ["x" => 0.64, "y" => 0.33],   // Red
+            ["x" => 0.3, "y" => 0.6],     // Green
+            ["x" => 0.15, "y" => 0.06],   // Blue
+            ["x" => 0.3127, "y" => 0.329] // White point D65
+        ]);
+        
+        // hs_color (Hue/Saturation)
+        if (strpos($lowerName, 'hs_color') !== false) {
+            return [
+                'PRESENTATION' => '{05CC3CC2-A0B2-5837-A4A7-A07EA0B9DDFB}',
+                'SELECTION' => 0,
+                'PRESET_VALUES' => $presets,
+                'ENCODING' => 2,           // HS
+                'COLOR_SPACE' => 1,        // sRGB
+                'COLOR_CURVE' => 0,        // Linear
+                'CUSTOM_COLOR_CURVE' => '[]',
+                'CUSTOM_COLOR_SPACE' => $colorSpace
+            ];
+        }
+        
+        // rgb_color (RGB)
+        if (strpos($lowerName, 'rgb_color') !== false) {
+            return [
+                'PRESENTATION' => '{05CC3CC2-A0B2-5837-A4A7-A07EA0B9DDFB}',
+                'SELECTION' => 0,
+                'PRESET_VALUES' => $presets,
+                'ENCODING' => 0,           // RGB
+                'COLOR_SPACE' => 1,        // sRGB
+                'COLOR_CURVE' => 0         // Linear
+            ];
+        }
+        
+        // xy_color (CIE XY)
+        if (strpos($lowerName, 'xy_color') !== false) {
+            return [
+                'PRESENTATION' => '{05CC3CC2-A0B2-5837-A4A7-A07EA0B9DDFB}',
+                'SELECTION' => 1,
+                'PRESET_VALUES' => $presets,
+                'ENCODING' => 4,           // XY
+                'COLOR_SPACE' => 1,        // sRGB
+                'COLOR_CURVE' => 0,        // Linear
+                'CUSTOM_COLOR_CURVE' => '[]',
+                'CUSTOM_COLOR_SPACE' => $colorSpace
+            ];
+        }
+        
+        return [];
     }
     
     /**
@@ -1159,6 +1381,205 @@ protected function DetermineVariableType(
             'mdi:shield-check' => 'Shield'
         ];
         return $legacy[$haIcon] ?? '';
+    }
+
+    /**
+     * Set variable value by ident only if it has changed.
+     * Returns true if value was updated, false if unchanged or variable not found.
+     */
+    protected function SetValueIfChangedByIdent(string $ident, $newValue): bool
+    {
+        $varId = @$this->GetIDForIdent($ident);
+        if ($varId === false || !is_int($varId) || $varId <= 0 || !IPS_VariableExists($varId)) {
+            return false;
+        }
+        return $this->SetIpsValueIfChanged($varId, $newValue);
+    }
+
+    /**
+     * Detect preferred color mode from existing IPS variables or HA attributes.
+     * Priority:
+     * 1) IPS variable with ident 'HAS_color_mode'
+     * 2) IPS variable with name 'color_mode'
+     * 3) HA attributes['color_mode']
+     * Returns: 'xy' | 'hs' | 'rgb' | ''
+     */
+    protected function DetectPreferredColorModeFromInstanceOrAttributes(array $attributes): string
+    {
+        // 1) Try by ident 'HAS_color_mode'
+        try {
+            $varId = @$this->GetIDForIdent('HAS_color_mode');
+            if (is_int($varId) && $varId > 0 && IPS_VariableExists($varId)) {
+                $raw = @GetValue($varId);
+                $mode = strtolower(trim((string)$raw));
+                if (in_array($mode, ['xy','hs','rgb'], true)) {
+                    return $mode;
+                }
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+
+        // 2) Try by variable name 'color_mode' under this instance
+        try {
+            $children = @IPS_GetChildrenIDs($this->InstanceID);
+            if (is_array($children)) {
+                foreach ($children as $id) {
+                    $obj = @IPS_GetObject($id);
+                    if (!is_array($obj) || ($obj['ObjectType'] ?? 0) !== 2 /* otVariable */) {
+                        continue;
+                    }
+                    $name = (string)($obj['ObjectName'] ?? '');
+                    if (strtolower($name) === 'color_mode') {
+                        $raw = @GetValue($id);
+                        $mode = strtolower(trim((string)$raw));
+                        if (in_array($mode, ['xy','hs','rgb'], true)) {
+                            return $mode;
+                        }
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+
+        // 3) Fallback to HA attributes
+        $attrMode = strtolower(trim((string)($attributes['color_mode'] ?? '')));
+        if (in_array($attrMode, ['xy','hs','rgb'], true)) {
+            return $attrMode;
+        }
+        return '';
+    }
+
+    /**
+     * Convert HA rgb_color value (array or string) to Symcon JSON object string {"r":x,"g":y,"b":z}
+     */
+    protected function ConvertRgbFromHa($value): string
+    {
+        $r = 0; $g = 0; $b = 0;
+        if (is_array($value)) {
+            if (isset($value['r']) || isset($value['g']) || isset($value['b'])) {
+                $r = (int)($value['r'] ?? 0);
+                $g = (int)($value['g'] ?? 0);
+                $b = (int)($value['b'] ?? 0);
+            } else {
+                // Numeric array [r,g,b]
+                $vals = array_values($value);
+                if (count($vals) >= 3) {
+                    $r = (int)$vals[0];
+                    $g = (int)$vals[1];
+                    $b = (int)$vals[2];
+                }
+            }
+        } elseif (is_string($value)) {
+            $str = trim($value);
+            // Try JSON decode first (object or array)
+            $decoded = json_decode($str, true);
+            if (is_array($decoded)) {
+                return $this->ConvertRgbFromHa($decoded);
+            }
+            // Fallback: allow formats like "[255,156,243]" or "255,156,243"
+            $str = trim($str, "[] \t\n\r");
+            $parts = preg_split('/\s*,\s*/', $str);
+            if (is_array($parts) && count($parts) >= 3) {
+                $r = (int)$parts[0];
+                $g = (int)$parts[1];
+                $b = (int)$parts[2];
+            }
+        }
+        // Clamp to 0..255
+        $r = max(0, min(255, $r));
+        $g = max(0, min(255, $g));
+        $b = max(0, min(255, $b));
+        return json_encode(['r' => $r, 'g' => $g, 'b' => $b]);
+    }
+
+    /**
+     * Convert Symcon JSON object string {"r":x,"g":y,"b":z} (or variants) to HA numeric array [r,g,b]
+     */
+    protected function ConvertRgbToHa($value): array
+    {
+        $r = 0; $g = 0; $b = 0;
+        if (is_string($value)) {
+            $str = trim($value);
+            $decoded = json_decode($str, true);
+            if (is_array($decoded)) {
+                $value = $decoded;
+            } else {
+                // Fallback: allow "255,156,243" or "[255,156,243]"
+                $str = trim($str, "[] \t\n\r");
+                $parts = preg_split('/\s*,\s*/', $str);
+                if (is_array($parts) && count($parts) >= 3) {
+                    $r = (int)$parts[0];
+                    $g = (int)$parts[1];
+                    $b = (int)$parts[2];
+                    return [max(0, min(255, $r)), max(0, min(255, $g)), max(0, min(255, $b))];
+                }
+            }
+        }
+        if (is_array($value)) {
+            if (isset($value['r']) || isset($value['g']) || isset($value['b'])) {
+                $r = (int)($value['r'] ?? 0);
+                $g = (int)($value['g'] ?? 0);
+                $b = (int)($value['b'] ?? 0);
+            } else {
+                $vals = array_values($value);
+                if (count($vals) >= 3) {
+                    $r = (int)$vals[0];
+                    $g = (int)$vals[1];
+                    $b = (int)$vals[2];
+                }
+            }
+        }
+        return [max(0, min(255, $r)), max(0, min(255, $g)), max(0, min(255, $b))];
+    }
+
+    /**
+     * Set variable value by VarID only if it has changed (with float tolerance).
+     * Returns true if value was updated, false if unchanged or variable invalid.
+     */
+    protected function SetIpsValueIfChanged(int $varId, $newValue): bool
+    {
+        if ($varId <= 0 || !IPS_VariableExists($varId)) {
+            return false;
+        }
+        $var = IPS_GetVariable($varId);
+        $type = $var['VariableType'];
+        // Normalize incoming value to variable type
+        switch ($type) {
+            case VARIABLETYPE_BOOLEAN:
+                $normalized = (bool)$newValue;
+                $current = (bool)GetValue($varId);
+                if ($current === $normalized) {
+                    return false;
+                }
+                SetValue($varId, $normalized);
+                return true;
+            case VARIABLETYPE_INTEGER:
+                $normalized = (int)$newValue;
+                $current = (int)GetValue($varId);
+                if ($current === $normalized) {
+                    return false;
+                }
+                SetValue($varId, $normalized);
+                return true;
+            case VARIABLETYPE_FLOAT:
+                $normalized = (float)$newValue;
+                $current = (float)GetValue($varId);
+                if (abs($current - $normalized) < 1e-6) {
+                    return false;
+                }
+                SetValue($varId, $normalized);
+                return true;
+            default:
+                $normalized = is_string($newValue) ? $newValue : (string)$newValue;
+                $current = (string)GetValue($varId);
+                if ($current === $normalized) {
+                    return false;
+                }
+                SetValue($varId, $normalized);
+                return true;
+        }
     }
 
     /**

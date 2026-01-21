@@ -13,6 +13,7 @@ Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon m
 - ✅ **Intelligente Typerkennung** für verschiedene Home Assistant Entitäten
 - ✅ **Bidirektionale Kommunikation** - Steuern von HA-Geräten aus IP-Symcon
 - ✅ **Saubere Architektur** mit getrennten Modulen für verschiedene Aufgaben
+- ✅ **Zentraler REST-Helper** (`libs/HaRestHelper.php`) für alle Home-Assistant API Calls
 - ✅ **Icon-Mapping** von Home Assistant zu IP-Symcon
 - ✅ **Moderne Variablen-Präsentationen** (z. B. Schalter/Slider) passend zur Entität
 - ✅ **Zweisprachige Lokalisierung** (DE/EN)
@@ -25,7 +26,7 @@ Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon m
 
 - Verbindung zu Home Assistant über REST API
 - Automatische Geräteerkennung und Configurator
-- Verwaltung der Home Assistant Verbindungsparameter
+- Geräteerstellung (HaDevice) und Multi-Entitäten-Assistent
 
 ### HaDevice - Entitäts-Repräsentation
 **Typ:** Device (Typ 3)  
@@ -36,22 +37,35 @@ Eine professionelle Bibliothek zur Integration von Home Assistant in IP-Symcon m
 - Bidirektionale Kommunikation (Lesen/Schreiben)
 - Unterstützt alle gängigen HA-Domains (light, switch, sensor, etc.)
 
+### HaMultiEntityDevice - Mehrere Entitäten in einer Instanz
+**Typ:** Device (Typ 3)  
+**GUID:** `{5E0B3C3A-FD10-4E32-95D3-1B4EAA9A7C77}`
+
+- Bündelt mehrere Home Assistant Entitäten in einer Instanz
+- Erzeugt pro Entität eine Status-Variable (`STAT_*`)
+- Optional zusätzliche Attribut-Variablen (`HAS_*`) inkl. Lokalisierung (DE/EN)
+
 ### HaBridge - MQTT Echtzeit-Integration
 **Typ:** Splitter (Typ 2)  
 **GUID:** `{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}`
 
 - Echtzeitaktualisierung über MQTT
 - Automatische Erkennung bestehender HaDevice Instanzen
+- Diagnose-Kachel (HTML-SDK) mit Cache-Übersicht und Tools (Resubscribe/Cache leeren)
+- Zentrale Konfiguration für Home Assistant URL und Token
 
 
 ## 🚀 Installation
 
-### 1. Über IP-Symcon Store
--
+### 1. Über den IP-Symcon Module Store
 
-### 2. Manuelle Installation
+Im Module Store **exakt** nach `HaSync` suchen und das Modul installieren.
 
-1. Modulecontrol öffnen und folgende URL hinzufügen: https://github.com/da8ter/HaSync.git
+### 2. Über Module Control (URL)
+
+In Module Control folgende URL hinzufügen:
+
+`https://github.com/da8ter/HaSync.git`
 
 ## ⚙️ Konfiguration
 
@@ -82,6 +96,8 @@ Hinweis: Es wird ausschließlich der IP-Symcon MQTT Server als Broker verwendet.
 6. In IP‑Symcon die **HaBridge**-Instanz erstellen/prüfen (siehe unten):
    - **Instanz hinzufügen** → **HaBridge**
    - **Parent**: den **MQTT Server** auswählen
+   - **Home Assistant URL** (z. B. `http://192.168.1.100:8123`)
+   - **Home Assistant Token** (Long-lived Access Token)
    - „Discovery Prefix“: `homeassistant` (Standard)
    - Übernehmen
 
@@ -101,10 +117,7 @@ Anschließend Home Assistant neu starten.
 ### Schritt 4: HaConfigurator konfigurieren
 
 1. **Instanz hinzufügen** → **HaConfigurator**
-2. **Home Assistant URL** eingeben (z. B. `http://192.168.1.100:8123`)
-3. **Langlebige Zugriffstoken** einfügen
-4. **Übernehmen** → Configurator öffnet sich automatisch
-5. Gewünschte Geräte auswählen und **Erstellen** klicken
+2. Gewünschte Geräte auswählen und **Erstellen** klicken
 
 ## 🔧 Unterstützte Entitätstypen
 
@@ -161,6 +174,10 @@ Das HaDevice Modul erkennt automatisch den korrekten Variablentyp:
 
 ## 🛠️ Troubleshooting
 
+### Instanz-Erstellung im Configurator
+- HaBridge Instanz vorhanden und korrekt verbunden (Parent: MQTT Server)
+- Module aktualisieren/Kernel neu laden und anschließend erneut im Configurator erstellen
+
 ### Verbindungsprobleme
 - Home Assistant URL und Token prüfen
 - Firewall-Einstellungen überprüfen
@@ -181,20 +198,32 @@ Das HaDevice Modul erkennt automatisch den korrekten Variablentyp:
 - [IP-Symcon](https://www.symcon.de/)
 - [MQTT Integration Guide](https://www.home-assistant.io/integrations/mqtt/)
 
-## 📝 Changelog
+## 📚 Technische Dokumentation
 
-### Version 2.0.0
-- ✅ Komplette Code-Bereinigung und Optimierung
-- ✅ Metadaten-Attribute Ausschluss implementiert
-- ✅ MQTT Integration vollständig funktionsfähig
-- ✅ Intelligente Typerkennung verbessert
-- ✅ Debug-Ausgaben reduziert
-- ✅ Dokumentation überarbeitet
+### Datenfluss-Diagramm
+Detaillierte Informationen zum Datenfluss zwischen den Modulen findest du in [DATAFLOW.md](DATAFLOW.md).
+
+### Bugfixes & Verbesserungen
+Alle behobenen Probleme und Verbesserungen sind in [BUGFIXES.md](BUGFIXES.md) dokumentiert.
+
+### Architektur-Übersicht
+```
+┌─────────────────┐
+│  HaConfigurator │  ← REST API (Konfiguration & Geräteerkennung)
+└─────────────────┘
+
+┌─────────────────┐
+│    HaBridge     │  ← MQTT Gateway (Broadcast-System)
+│  (Splitter)     │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    │         │
+┌───▼───┐ ┌──▼──────────────────┐
+│HaDevice│ │HaMultiEntityDevice │  ← Geräte-Instanzen
+└────────┘ └─────────────────────┘
+```
 
 ## 📄 Lizenz
 
 MIT License - siehe [LICENSE](LICENSE) für Details.
-
----
-
-**Entwickelt von [Windsurf.io](https://windsurf.io) • Version 2.0.0 • 2025**

@@ -25,8 +25,8 @@ Beschreibung des Moduls.
 
 ### 3. Software-Installation
 
-* Über den Module Store das 'HaDevice'-Modul installieren.
-* Alternativ über das Module Control folgende URL hinzufügen
+* Über den Module Store **exakt** nach `HaSync` suchen und das Modul installieren.
+* Alternativ über das Module Control folgende URL hinzufügen: `https://github.com/da8ter/HaSync.git`
 
 ### 4. Einrichten der Instanzen in IP-Symcon
 
@@ -38,8 +38,9 @@ __Konfigurationsseite__:
 Name     | Beschreibung
 -------- | ------------------
 Entity ID | Vollständige Home Assistant Entity-ID (z. B. `light.wohnzimmer`)
-Home Assistant Verbindung (automatisch) | Referenz auf `HaConfigurator`-Instanz (wird automatisch gesetzt)
 Create additional variables | Wenn aktiv, werden zusätzliche Attribut-Variablen (`HAS_...`) erzeugt
+
+Hinweis: Die Home Assistant Verbindung (URL/Token) wird zentral in der `HaBridge` konfiguriert.
 
 ### 5. Statusvariablen und Profile
 
