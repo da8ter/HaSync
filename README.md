@@ -1,8 +1,8 @@
 # HaSync - Home Assistant Integration für IP-Symcon
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/your-repo)
+[![Version](https://img.shields.io/badge/version-0.1.1-blue)](https://github.com/da8ter/HaSync)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![IP-Symcon](https://img.shields.io/badge/IP--Symcon-7.1%2B-orange)](https://symcon.de)
+[![IP-Symcon](https://img.shields.io/badge/IP--Symcon-8.1%2B-orange)](https://symcon.de)
 
 Ein Modul zur Integration von Home Assistant in IP-Symcon mit automatischer Geräteerkennung, Echtzeitaktualisierung und bidirektionaler Kommunikation.
 
