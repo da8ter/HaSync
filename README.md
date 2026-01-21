@@ -19,6 +19,7 @@ Ein Modul zur Integration von Home Assistant in IP-Symcon mit automatischer Ger�
 ## 📦 Module
 
 ### HaConfigurator - REST API Configurator
+Readme: https://github.com/da8ter/HaSync/blob/main/HaConfigurator/README.md
 **Typ:** Configurator (Typ 4)  
 
 - Verbindung zu Home Assistant über REST API
