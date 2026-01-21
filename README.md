@@ -20,6 +20,7 @@ Ein Modul zur Integration von Home Assistant in IP-Symcon mit automatischer Ger�
 
 ### HaConfigurator - REST API Configurator
 Readme: https://github.com/da8ter/HaSync/blob/main/HaConfigurator/README.md
+
 **Typ:** Configurator (Typ 4)  
 
 - Verbindung zu Home Assistant über REST API
@@ -27,6 +28,8 @@ Readme: https://github.com/da8ter/HaSync/blob/main/HaConfigurator/README.md
 - Geräteerstellung (HaDevice) und Multi-Entitäten-Assistent
 
 ### HaDevice - Entitäts-Repräsentation
+Readme: https://github.com/da8ter/HaSync/blob/main/HaDevice/README.md
+
 **Typ:** Device (Typ 3)  
 
 - Repräsentiert einzelne Home Assistant Entitäten
@@ -35,6 +38,8 @@ Readme: https://github.com/da8ter/HaSync/blob/main/HaConfigurator/README.md
 - Unterstützt alle gängigen HA-Domains (light, switch, sensor, etc.)
 
 ### HaMultiEntityDevice - Mehrere Entitäten in einer Instanz
+Readme: https://github.com/da8ter/HaSync/blob/main/HaMultiEntityDevice/README.md
+
 **Typ:** Device (Typ 3)  
 
 - Bündelt mehrere Home Assistant Entitäten in einer Instanz
@@ -42,6 +47,8 @@ Readme: https://github.com/da8ter/HaSync/blob/main/HaConfigurator/README.md
 - Optional zusätzliche Attribut-Variablen (`HAS_*`) inkl. Lokalisierung (DE/EN)
 
 ### HaBridge - MQTT Echtzeit-Integration
+Readme: https://github.com/da8ter/HaSync/blob/main/HaBridge/README.md
+
 **Typ:** Splitter (Typ 2)  
 
 - Echtzeitaktualisierung über MQTT
