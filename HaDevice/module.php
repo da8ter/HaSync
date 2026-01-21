@@ -25,15 +25,6 @@ class HaDevice extends IPSModule
         $this->RegisterPropertyBoolean('mqtt_enabled', false);
         $this->RegisterAttributeString('LastMQTTUpdate', '');
         $this->RegisterAttributeBoolean('Initialized', false);
-        
-        // Auto-connect to HaBridge parent if not already connected
-        $bridgeModuleID = '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}';
-        if (@IPS_GetInstance($this->InstanceID)['ConnectionID'] === 0) {
-            $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
-            if (is_array($bridges) && count($bridges) > 0) {
-                @IPS_ConnectInstance($this->InstanceID, (int)$bridges[0]);
-            }
-        }
     }
 
     /**
@@ -201,7 +192,7 @@ class HaDevice extends IPSModule
         if ($connId === 0) {
             $bridgeModuleID = '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}';
             $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
-            if (is_array($bridges) && count($bridges) > 0) {
+            if (is_array($bridges) && count($bridges) === 1) {
                 @IPS_ConnectInstance($this->InstanceID, (int)$bridges[0]);
                 try {
                     $connId = (int)(@IPS_GetInstance($this->InstanceID)['ConnectionID'] ?? 0);

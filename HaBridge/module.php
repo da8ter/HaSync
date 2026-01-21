@@ -18,7 +18,6 @@ class HaBridge extends IPSModule
         parent::Create();
         $this->SetVisualizationType(1);
         // MQTT Server connection
-        $this->ConnectParent('{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}');
         
         // Properties
         $this->RegisterPropertyString('ClientID', 'HaBridge_' . $this->InstanceID);
@@ -49,19 +48,6 @@ class HaBridge extends IPSModule
             $connID = (int)(@IPS_GetInstance($this->InstanceID)['ConnectionID'] ?? 0);
         } catch (Exception $e) {
             $connID = 0;
-        }
-
-        if ($connID === 0) {
-            $mqttServerModuleID = '{C6D2AEB3-6E1F-4B2E-8E69-3A1A00246850}';
-            $servers = @IPS_GetInstanceListByModuleID($mqttServerModuleID);
-            if (is_array($servers) && count($servers) > 0) {
-                @IPS_ConnectInstance($this->InstanceID, (int)$servers[0]);
-                try {
-                    $connID = (int)(@IPS_GetInstance($this->InstanceID)['ConnectionID'] ?? 0);
-                } catch (Exception $e) {
-                    $connID = 0;
-                }
-            }
         }
 
         if ($connID === 0) {
