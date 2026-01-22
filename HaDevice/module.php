@@ -25,6 +25,15 @@ class HaDevice extends IPSModule
         $this->RegisterPropertyBoolean('mqtt_enabled', false);
         $this->RegisterAttributeString('LastMQTTUpdate', '');
         $this->RegisterAttributeBoolean('Initialized', false);
+        
+        // Auto-connect to HaBridge parent if not already connected
+        $bridgeModuleID = '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}';
+        if (@IPS_GetInstance($this->InstanceID)['ConnectionID'] === 0) {
+            $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
+            if (is_array($bridges) && count($bridges) > 0) {
+                @IPS_ConnectInstance($this->InstanceID, (int)$bridges[0]);
+            }
+        }
     }
 
     /**
@@ -192,7 +201,7 @@ class HaDevice extends IPSModule
         if ($connId === 0) {
             $bridgeModuleID = '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}';
             $bridges = @IPS_GetInstanceListByModuleID($bridgeModuleID);
-            if (is_array($bridges) && count($bridges) === 1) {
+            if (is_array($bridges) && count($bridges) > 0) {
                 @IPS_ConnectInstance($this->InstanceID, (int)$bridges[0]);
                 try {
                     $connId = (int)(@IPS_GetInstance($this->InstanceID)['ConnectionID'] ?? 0);
@@ -594,33 +603,44 @@ class HaDevice extends IPSModule
      */
     protected function GetHAConfig(): array
     {
+        // 1. Try to get config from connected HaBridge parent
+        $connId = 0;
+        try {
+            $connId = (int)(@IPS_GetInstance($this->InstanceID)['ConnectionID'] ?? 0);
+        } catch (Exception $e) {
+            $connId = 0;
+        }
+        
+        if ($connId > 0 && @IPS_InstanceExists($connId)) {
+            // Check if parent is HaBridge
+            $inst = @IPS_GetInstance($connId);
+            if (($inst['ModuleInfo']['ModuleID'] ?? '') === '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}') {
+                $url = @IPS_GetProperty($connId, 'ha_url');
+                $token = @IPS_GetProperty($connId, 'ha_token');
+                if (is_string($url) && $url !== '' && is_string($token) && $token !== '') {
+                    return ['url' => $url, 'token' => $token];
+                }
+            }
+        }
+
+        // 2. Fallback: Try to get from Configurator (parent_id)
         $parentID = $this->ReadPropertyInteger('parent_id');
         
-        if ($parentID === 0) {
-            return ['url' => '', 'token' => ''];
-        }
-        
-        if (!IPS_InstanceExists($parentID)) {
-            return ['url' => '', 'token' => ''];
-        }
-        
-        try {
-            $parentInfo = IPS_GetInstance($parentID);
-            if (($parentInfo['InstanceStatus'] ?? 0) !== 102) {
-                return ['url' => '', 'token' => ''];
+        if ($parentID > 0 && IPS_InstanceExists($parentID)) {
+            try {
+                $parentInfo = IPS_GetInstance($parentID);
+                // Check if it's a HaConfigurator
+                if ($parentInfo['ModuleInfo']['ModuleID'] === '{32D99DCD-A530-4907-3FB0-44D7D472771D}') {
+                    $url = @IPS_GetProperty($parentID, 'ha_url');
+                    $token = @IPS_GetProperty($parentID, 'ha_token');
+                    
+                    if (is_string($url) && $url !== '' && is_string($token) && $token !== '') {
+                        return ['url' => $url, 'token' => $token];
+                    }
+                }
+            } catch (Exception $e) {
+                // Ignore errors
             }
-            
-            if ($parentInfo['ModuleInfo']['ModuleID'] === '{32D99DCD-A530-4907-3FB0-44D7D472771D}') {
-                $url = @IPS_GetProperty($parentID, 'ha_url');
-                $token = @IPS_GetProperty($parentID, 'ha_token');
-                
-                return [
-                    'url' => is_string($url) ? $url : '',
-                    'token' => is_string($token) ? $token : ''
-                ];
-            }
-        } catch (Exception $e) {
-            // Ignore errors
         }
         
         return ['url' => '', 'token' => ''];
@@ -1105,6 +1125,13 @@ protected function DetermineVariableType(
     /* --- Value-Presentation als Default für schreibgeschützte Status-Variablen --- */
     if ($isStatusVariable && !$editable && empty($presentation)) {
         $presentation = ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}'];
+        // Add Suffix if unit is available
+        if (isset($attributes['unit_of_measurement']) && ($varType === VARIABLETYPE_INTEGER || $varType === VARIABLETYPE_FLOAT)) {
+            $presentation['SUFFIX'] = ' ' . $attributes['unit_of_measurement'];
+            if ($varType === VARIABLETYPE_FLOAT) {
+                 $presentation['DIGITS'] = 2;
+            }
+        }
     }
 
     return [$varType, $convertedValue, $profile, $editable, $presentation];

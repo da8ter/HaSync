@@ -17,7 +17,6 @@ class HaBridge extends IPSModule
     {
         parent::Create();
         $this->SetVisualizationType(1);
-        // MQTT Server connection
         
         // Properties
         $this->RegisterPropertyString('ClientID', 'HaBridge_' . $this->InstanceID);

@@ -971,6 +971,13 @@ class HaMultiEntityDevice extends IPSModule
 
         if ($isStatusVariable && !$editable && empty($presentation)) {
             $presentation = ['PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}'];
+            // Add Suffix if unit is available
+            if (isset($attributes['unit_of_measurement']) && ($varType === VARIABLETYPE_INTEGER || $varType === VARIABLETYPE_FLOAT)) {
+                $presentation['SUFFIX'] = ' ' . $attributes['unit_of_measurement'];
+                if ($varType === VARIABLETYPE_FLOAT) {
+                     $presentation['DIGITS'] = 2;
+                }
+            }
         }
 
         return [$varType, $convertedValue, $profile, $editable, $presentation];
@@ -1284,7 +1291,27 @@ class HaMultiEntityDevice extends IPSModule
 
     protected function GetHAConfig(): array
     {
-        // Try to resolve from HaConfigurator instances
+        // 1. Try to get config from connected HaBridge parent
+        $connId = 0;
+        try {
+            $connId = (int)(@IPS_GetInstance($this->InstanceID)['ConnectionID'] ?? 0);
+        } catch (Exception $e) {
+            $connId = 0;
+        }
+        
+        if ($connId > 0 && @IPS_InstanceExists($connId)) {
+            // Check if parent is HaBridge
+            $inst = @IPS_GetInstance($connId);
+            if (($inst['ModuleInfo']['ModuleID'] ?? '') === '{B8A9C2D1-4E5F-6789-ABCD-123456789ABC}') {
+                $url = @IPS_GetProperty($connId, 'ha_url');
+                $token = @IPS_GetProperty($connId, 'ha_token');
+                if (is_string($url) && $url !== '' && is_string($token) && $token !== '') {
+                    return ['url' => $url, 'token' => $token];
+                }
+            }
+        }
+
+        // 2. Fallback: Try to resolve from HaConfigurator instances
         try {
             $moduleID = '{32D99DCD-A530-4907-3FB0-44D7D472771D}';
             $ids = @IPS_GetInstanceListByModuleID($moduleID);
