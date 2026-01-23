@@ -312,7 +312,6 @@ class HaMultiEntityDevice extends IPSModule
                     if (isset($presForIPS['ICON'])) {
                         unset($presForIPS['ICON']);
                     }
-                    // IPS expects OPTIONS as array, not JSON string
                     // Some environments do not accept Presentation on BOOLEAN variables -> guard
                     if ($varType !== VARIABLETYPE_BOOLEAN && is_array($presForIPS)) {
                         @IPS_SetVariableCustomPresentation($varId, $presForIPS);
@@ -363,7 +362,7 @@ class HaMultiEntityDevice extends IPSModule
                 }
             }
 
-            if ($editable && in_array($entityDomain, ['input_number', 'number', 'light', 'switch', 'input_boolean', 'lock'])) {
+            if ($editable && in_array($entityDomain, ['input_number', 'number', 'input_select', 'select', 'light', 'switch', 'input_boolean', 'lock'])) {
                 $this->EnableAction($ident);
             }
 
@@ -490,6 +489,14 @@ class HaMultiEntityDevice extends IPSModule
             case 'number':
                 $service = 'input_number/set_value';
                 $data['value'] = (float)$value;
+                break;
+            case 'input_select':
+                $service = 'input_select/select_option';
+                $data['option'] = (string)$value;
+                break;
+            case 'select':
+                $service = 'select/select_option';
+                $data['option'] = (string)$value;
                 break;
             case 'light':
                 $service = $value ? 'light/turn_on' : 'light/turn_off';
@@ -952,12 +959,58 @@ class HaMultiEntityDevice extends IPSModule
             if (is_numeric($value)) {
                 $varType = (strpos((string)$value, '.') !== false) ? VARIABLETYPE_FLOAT : VARIABLETYPE_INTEGER;
                 $convertedValue = $varType === VARIABLETYPE_FLOAT ? (float)$value : (int)$value;
+                $presentation = [
+                    'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
+                    'SUFFIX'       => isset($attributes['unit_of_measurement']) ? (' ' . $attributes['unit_of_measurement']) : '',
+                    'DIGITS'       => ($varType === VARIABLETYPE_FLOAT) ? 2 : 0
+                ];
+            } else {
+                // String-Sensor (z.B. device_class: enum) - Wertanzeige mit optionalem Suffix
+                $varType = VARIABLETYPE_STRING;
+                $convertedValue = is_scalar($value) ? (string)$value : json_encode($value);
+                $presentation = [
+                    'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
+                    'SUFFIX'       => isset($attributes['unit_of_measurement'])
+                                        ? ' ' . $attributes['unit_of_measurement'] : ''
+                ];
             }
-            $presentation = [
-                'PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
-                'SUFFIX'       => isset($attributes['unit_of_measurement']) ? (' ' . $attributes['unit_of_measurement']) : '',
-                'DIGITS'       => ($varType === VARIABLETYPE_FLOAT) ? 2 : 0
-            ];
+        } elseif (in_array($entityDomain, ['input_select', 'select'], true)) {
+            $varType = VARIABLETYPE_STRING;
+            $convertedValue = is_scalar($value) ? (string)$value : json_encode($value);
+            $editable = true;
+            $opts = $attributes['options'] ?? [];
+            if (is_string($opts)) {
+                $decoded = json_decode($opts, true);
+                if (is_array($decoded)) {
+                    $opts = $decoded;
+                }
+            }
+            if (is_array($opts) && !empty($opts)) {
+                $options = [];
+                foreach ($opts as $opt) {
+                    if (!is_scalar($opt)) {
+                        continue;
+                    }
+                    $optStr = (string)$opt;
+                    $options[] = [
+                        'Value' => $optStr,
+                        'Caption' => $optStr,
+                        'IconValue' => '',
+                        'IconActive' => false,
+                        'Color' => -1
+                    ];
+                }
+                if (!empty($options)) {
+                    // Aufzählung Presentation - OPTIONS muss JSON-String sein
+                    $presentation = [
+                        'DISPLAY' => 0,
+                        'LAYOUT' => 1,
+                        'PRESENTATION' => '{52D9E126-D7D2-2CBB-5E62-4CF7BA7C5D82}',
+                        'ICON' => '',
+                        'OPTIONS' => json_encode($options)
+                    ];
+                }
+            }
         } elseif (is_bool($value)) {
             $varType = VARIABLETYPE_BOOLEAN;
             $convertedValue = (bool)$value;

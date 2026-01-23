@@ -366,7 +366,13 @@ class HaBridge extends IPSModule
             'EntityID' => $entityId,
             'Payload'  => $data
         ];
-        $this->SendDataToChildren(json_encode($packet));
+        
+        $json = json_encode($packet);
+        if ($json === false) {
+            $this->SendDebug('BroadcastStateUpdate', 'JSON Encode failed: ' . json_last_error_msg(), 0);
+            return;
+        }
+        $this->SendDataToChildren($json);
     }
 
     protected function LoadEntityStateCache(): array
@@ -796,6 +802,10 @@ class HaBridge extends IPSModule
     protected function DecodePayload($payload)
     {
         if (!is_string($payload)) {
+            return $payload;
+        }
+        // Rein numerische Strings (z.B. "37", "100") NICHT als Hex interpretieren
+        if (preg_match('/^-?\d+\.?\d*$/', $payload)) {
             return $payload;
         }
         // Erkennen: nur Hex-Zeichen und gerade Länge
