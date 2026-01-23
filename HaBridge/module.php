@@ -302,6 +302,23 @@ class HaBridge extends IPSModule
                 $this->SubscribeTopic($base . '/state');
                 $this->SubscribeTopic($base . '/attributes');
             }
+
+            // Support MQTT-only Geräte: homeassistant/<domain>/<device_id>/<object_id>/...
+            // entityId ist domain.object_id
+            $dot = strpos((string)$entityId, '.');
+            if ($dot !== false) {
+                $domain = substr((string)$entityId, 0, $dot);
+                $objectId = substr((string)$entityId, $dot + 1);
+                if ($domain !== '' && $objectId !== '') {
+                    $baseWithDevice = $discoveryPrefix . '/' . $domain . '/+/' . $objectId;
+                    $ok2 = $this->SubscribeTopic($baseWithDevice . '/#');
+                    if (!$ok2) {
+                        $this->SubscribeTopic($baseWithDevice . '/state');
+                        $this->SubscribeTopic($baseWithDevice . '/attributes');
+                        $this->SubscribeTopic($baseWithDevice . '/config');
+                    }
+                }
+            }
         }
         
         // Store subscribed topics
@@ -309,6 +326,16 @@ class HaBridge extends IPSModule
         foreach (array_keys($entities) as $eId) {
             $base = $discoveryPrefix . '/' . str_replace('.', '/', $eId);
             $topics[] = $base . '/#';
+
+            // Store MQTT-only 4-segment subscription pattern as well
+            $dot = strpos((string)$eId, '.');
+            if ($dot !== false) {
+                $domain = substr((string)$eId, 0, $dot);
+                $objectId = substr((string)$eId, $dot + 1);
+                if ($domain !== '' && $objectId !== '') {
+                    $topics[] = $discoveryPrefix . '/' . $domain . '/+/' . $objectId . '/#';
+                }
+            }
         }
         
         $this->WriteAttributeString('SubscribedTopics', json_encode($topics));
