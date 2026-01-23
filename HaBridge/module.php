@@ -28,6 +28,7 @@ class HaBridge extends IPSModule
         $this->RegisterAttributeString('SubscribedTopics', json_encode([]));
         $this->RegisterAttributeString('EntityMapping', '{}');
         $this->RegisterAttributeString('EntityStateCache', '{}');
+        $this->RegisterAttributeString('ConfigHashCache', '{}');
         
         // Neutralize legacy discovery timer (kept with 0 interval and no-op callback)
         $this->RegisterTimer('DiscoveryTimer', 0, ';');
@@ -95,10 +96,33 @@ class HaBridge extends IPSModule
         
         try {
             if ($this->IsRelevantTopic($topic)) {
-                // Unterstützt nun auch attribute-spezifische Topics wie /brightness, /xy_color, ...
+                // Unterstützt nun auch attribute-spezifische Topics wie /brightness, /xy_color, /config ...
                 [$entityId, $key] = $this->ExtractEntityIdAndKeyFromTopic($topic);
                 if ($entityId) {
-                    if ($key === 'state') {
+                    if ($key === 'config') {
+                        // MQTT Discovery Config - enthält Gerätemetadaten für MQTT-only Geräte
+                        // Cache-Check um wiederholte Verarbeitung zu vermeiden (Queue Limit)
+                        $payloadHash = md5($payload);
+                        $hashCache = json_decode($this->ReadAttributeString('ConfigHashCache'), true) ?: [];
+                        if (isset($hashCache[$entityId]) && $hashCache[$entityId] === $payloadHash) {
+                            return ''; // Bereits verarbeitet, überspringen
+                        }
+                        $decoded = json_decode($payload, true);
+                        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                            $this->SendDebug('ReceiveData', 'Discovery config for ' . $entityId, 0);
+                            // Hash cachen
+                            $hashCache[$entityId] = $payloadHash;
+                            $this->WriteAttributeString('ConfigHashCache', json_encode($hashCache));
+                            // Config-Daten als spezielle Attribute weiterleiten
+                            $update = ['config' => $decoded];
+                            // Falls state_topic vorhanden, extrahiere auch den initialen State
+                            if (isset($decoded['state'])) {
+                                $update['state'] = $decoded['state'];
+                            }
+                            $this->UpdateEntityStateCache($entityId, $update);
+                            $this->BroadcastStateUpdate($entityId, $update);
+                        }
+                    } elseif ($key === 'state') {
                         $decoded = json_decode($payload, true);
                         $val = (json_last_error() === JSON_ERROR_NONE) ? $decoded : $payload;
                         $update = ['state' => $val];
@@ -431,10 +455,19 @@ class HaBridge extends IPSModule
     protected function ExtractEntityIdFromTopic($topic): ?string
     {
         $prefix = rtrim($this->ReadPropertyString('ha_discovery_prefix'), '/');
-        $rx = '#^' . preg_quote($prefix, '#') . '/([^/]+)/([^/]+)/(state|attributes)$#';
-        if (preg_match($rx, (string)$topic, $matches)) {
-            return $matches[1] . '.' . $matches[2];
+        
+        // Format 1: 4 Segmente (mit device_id)
+        $rx4 = '#^' . preg_quote($prefix, '#') . '/([^/]+)/[^/]+/([^/]+)/(state|attributes|config)$#';
+        if (preg_match($rx4, (string)$topic, $m)) {
+            return $m[1] . '.' . $m[2];
         }
+        
+        // Format 2: 3 Segmente (Standard)
+        $rx3 = '#^' . preg_quote($prefix, '#') . '/([^/]+)/([^/]+)/(state|attributes|config)$#';
+        if (preg_match($rx3, (string)$topic, $m)) {
+            return $m[1] . '.' . $m[2];
+        }
+        
         return null;
     }
     
@@ -444,10 +477,20 @@ class HaBridge extends IPSModule
     protected function ExtractEntityIdAndKeyFromTopic($topic): array
     {
         $prefix = rtrim($this->ReadPropertyString('ha_discovery_prefix'), '/');
-        $rx = '#^' . preg_quote($prefix, '#') . '/([^/]+)/([^/]+)/([^/]+)$#';
-        if (preg_match($rx, (string)$topic, $m)) {
+        
+        // Format 1: homeassistant/<domain>/<device_id>/<entity_id>/<key> (4 Segmente)
+        // Beispiel: homeassistant/binary_sensor/SBS50148995FA_00000008/SBS50148995FA_00000008_battery/state
+        $rx4 = '#^' . preg_quote($prefix, '#') . '/([^/]+)/[^/]+/([^/]+)/([^/]+)$#';
+        if (preg_match($rx4, (string)$topic, $m)) {
+            return [$m[1] . '.' . $m[2], $m[3]]; // domain.entity_id, key
+        }
+        
+        // Format 2: homeassistant/<domain>/<entity_id>/<key> (3 Segmente, Standard HA)
+        $rx3 = '#^' . preg_quote($prefix, '#') . '/([^/]+)/([^/]+)/([^/]+)$#';
+        if (preg_match($rx3, (string)$topic, $m)) {
             return [$m[1] . '.' . $m[2], $m[3]];
         }
+        
         return [null, null];
     }
     
