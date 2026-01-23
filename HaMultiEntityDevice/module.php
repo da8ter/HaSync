@@ -241,6 +241,10 @@ class HaMultiEntityDevice extends IPSModule
             $alias = isset($e['alias']) && is_string($e['alias']) ? trim($e['alias']) : '';
             $ident = $this->BuildIdentForEntity($entityId);
             $index[$entityId] = $ident;
+            $entityIdLower = strtolower($entityId);
+            if ($entityIdLower !== $entityId) {
+                $index[$entityIdLower] = $ident;
+            }
 
             $varIdBefore = @$this->GetIDForIdent($ident);
             $hadVarBefore = ($varIdBefore !== false && IPS_VariableExists($varIdBefore));
@@ -412,7 +416,8 @@ class HaMultiEntityDevice extends IPSModule
         $entities = $this->ReadEntities();
         $known = false;
         foreach ($entities as $e) {
-            if (($e['entity_id'] ?? '') === $entityId) {
+            $cfgId = (string)($e['entity_id'] ?? '');
+            if ($cfgId !== '' && strtolower($cfgId) === strtolower($entityId)) {
                 $known = true;
                 break;
             }
@@ -685,7 +690,7 @@ class HaMultiEntityDevice extends IPSModule
     {
         $this->SendDebug('ProcessDiscoveryConfig', 'Processing ' . count($config) . ' config fields for ' . $entityId, 0);
         $skipKeys = ['availability', 'json_attributes_topic', 'state_topic', 'command_topic', 'availability_topic', 'schema', 'platform'];
-        $entityIdent = $this->BuildIdentForEntity($entityId);
+        $entityIdent = $this->ResolveIdentByEntityId($entityId);
         
         foreach ($config as $key => $value) {
             // Handle nested 'device' object first - flatten important fields
@@ -728,24 +733,49 @@ class HaMultiEntityDevice extends IPSModule
             $varType = VARIABLETYPE_FLOAT;
         }
         
-        $this->MaintainVariable($ident, $key, $varType, '', 0, true);
-        $varId = @$this->GetIDForIdent($ident);
-        if ($varId === false) return;
-        
+        $statusId = @$this->GetIDForIdent($entityIdent);
+        $varId = ($statusId > 0) ? @IPS_GetObjectIDByIdent($ident, $statusId) : false;
+        if ($varId === false || $varId <= 0 || !IPS_VariableExists($varId)) {
+            $varId = @IPS_GetObjectIDByIdent($ident, $this->InstanceID);
+        }
+
+        if ($varId !== false && $varId > 0 && IPS_VariableExists($varId)) {
+            $existing = IPS_GetVariable($varId);
+            if ((int)$existing['VariableType'] !== (int)$varType) {
+                @IPS_DeleteVariable($varId);
+                $varId = false;
+            }
+        }
+
+        if ($varId === false || $varId <= 0 || !IPS_VariableExists($varId)) {
+            $varId = @IPS_CreateVariable($varType);
+            if ($varId === false) {
+                return;
+            }
+            @IPS_SetParent($varId, ($statusId > 0 ? $statusId : $this->InstanceID));
+            @IPS_SetIdent($varId, $ident);
+            @IPS_SetName($varId, (string)$key);
+        } else {
+            if ($statusId > 0) {
+                @IPS_SetParent($varId, $statusId);
+            }
+            @IPS_SetName($varId, (string)$key);
+        }
+
         IPS_SetHidden($varId, true);
         
         switch ($varType) {
             case VARIABLETYPE_BOOLEAN:
-                $this->SetValueIfChangedByIdent($ident, is_bool($value) ? $value : in_array(strtolower((string)$value), ['true','on','1','yes'], true));
+                $this->SetIpsValueIfChanged((int)$varId, is_bool($value) ? $value : in_array(strtolower((string)$value), ['true','on','1','yes'], true));
                 break;
             case VARIABLETYPE_INTEGER:
-                $this->SetValueIfChangedByIdent($ident, (int)$value);
+                $this->SetIpsValueIfChanged((int)$varId, (int)$value);
                 break;
             case VARIABLETYPE_FLOAT:
-                $this->SetValueIfChangedByIdent($ident, (float)$value);
+                $this->SetIpsValueIfChanged((int)$varId, (float)$value);
                 break;
             default:
-                $this->SetValueIfChangedByIdent($ident, (string)$value);
+                $this->SetIpsValueIfChanged((int)$varId, (string)$value);
         }
     }
 
@@ -758,7 +788,7 @@ class HaMultiEntityDevice extends IPSModule
     {
         $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
         $skip = [];
-        $entityIdent = $this->BuildIdentForEntity($entityId); // e.g. STAT_sensor_xxx
+        $entityIdent = $this->ResolveIdentByEntityId($entityId); // e.g. STAT_sensor_xxx
         // Determine base position from the entity's Status variable
         $statusId = @$this->GetIDForIdent($entityIdent);
         $basePos = 0;

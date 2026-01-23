@@ -510,7 +510,7 @@ class HaBridge extends IPSModule
         $prefix = rtrim($this->ReadPropertyString('ha_discovery_prefix'), '/');
         $rx = '#^' . preg_quote($prefix, '#') . '/([^/]+)/([^/]+)/state$#';
         if (preg_match($rx, (string)$topic, $matches)) {
-            return $matches[1] . '.' . $matches[2];
+            return strtolower($matches[1] . '.' . $matches[2]);
         }
         return null;
     }
@@ -525,13 +525,13 @@ class HaBridge extends IPSModule
         // Format 1: 4 Segmente (mit device_id)
         $rx4 = '#^' . preg_quote($prefix, '#') . '/([^/]+)/[^/]+/([^/]+)/(state|attributes|config)$#';
         if (preg_match($rx4, (string)$topic, $m)) {
-            return $m[1] . '.' . $m[2];
+            return strtolower($m[1] . '.' . $m[2]);
         }
         
         // Format 2: 3 Segmente (Standard)
         $rx3 = '#^' . preg_quote($prefix, '#') . '/([^/]+)/([^/]+)/(state|attributes|config)$#';
         if (preg_match($rx3, (string)$topic, $m)) {
-            return $m[1] . '.' . $m[2];
+            return strtolower($m[1] . '.' . $m[2]);
         }
         
         return null;
@@ -548,13 +548,13 @@ class HaBridge extends IPSModule
         // Beispiel: homeassistant/binary_sensor/SBS50148995FA_00000008/SBS50148995FA_00000008_battery/state
         $rx4 = '#^' . preg_quote($prefix, '#') . '/([^/]+)/[^/]+/([^/]+)/([^/]+)$#';
         if (preg_match($rx4, (string)$topic, $m)) {
-            return [$m[1] . '.' . $m[2], $m[3]]; // domain.entity_id, key
+            return [strtolower($m[1] . '.' . $m[2]), $m[3]]; // domain.entity_id, key
         }
         
         // Format 2: homeassistant/<domain>/<entity_id>/<key> (3 Segmente, Standard HA)
         $rx3 = '#^' . preg_quote($prefix, '#') . '/([^/]+)/([^/]+)/([^/]+)$#';
         if (preg_match($rx3, (string)$topic, $m)) {
-            return [$m[1] . '.' . $m[2], $m[3]];
+            return [strtolower($m[1] . '.' . $m[2]), $m[3]];
         }
         
         return [null, null];

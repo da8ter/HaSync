@@ -161,10 +161,14 @@ class HaDevice extends IPSModule
             return;
         }
         $myEntity = $this->ReadPropertyString('entity_id');
-        if ($myEntity === '' || $entityId !== $myEntity) {
+        $payload = $data['Payload'] ?? [];
+        $hasConfig = is_array($payload) && isset($payload['config']) && is_array($payload['config']);
+        if ($myEntity === '' || strtolower($entityId) !== strtolower($myEntity)) {
+            if ($hasConfig) {
+                $this->SendDebug('ReceiveData', 'Config ignored due to entity mismatch (got=' . $entityId . ', want=' . $myEntity . ')', 0);
+            }
             return; // Different entity
         }
-        $payload = $data['Payload'] ?? [];
         $out = ['entity_id' => $entityId];
         if (is_array($payload)) {
             if (array_key_exists('state', $payload)) {
@@ -309,7 +313,7 @@ class HaDevice extends IPSModule
         // Find matching device
         $device = null;
         foreach ($devices as $entity) {
-            if (isset($entity['entity_id']) && $entity['entity_id'] === $entityId) {
+            if (isset($entity['entity_id']) && strtolower((string)$entity['entity_id']) === strtolower((string)$entityId)) {
                 $device = $entity;
                 break;
             }
@@ -784,7 +788,7 @@ public function ProcessMQTTStateUpdate(string $data): bool
 
     // Akzeptiere nur exakte entity_id für diese Instanz
     $entityIdBase = $this->ReadPropertyString('entity_id');
-    if ($payload['entity_id'] !== $entityIdBase) {
+    if ($entityIdBase === '' || strtolower((string)$payload['entity_id']) !== strtolower((string)$entityIdBase)) {
         return false;                                       // fremde Entität → Abbruch
     }
 
@@ -980,6 +984,9 @@ public function ProcessMQTTStateUpdate(string $data): bool
 
     /* ---------- 3) MQTT Discovery Config verarbeiten (für MQTT-only Geräte) ---------- */
     $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
+    if (!$createExtra && isset($payload['config']) && is_array($payload['config'])) {
+        $this->SendDebug('ProcessMQTTStateUpdate', 'Discovery config ignored because create_additional_vars is disabled', 0);
+    }
     if ($createExtra && isset($payload['config']) && is_array($payload['config'])) {
         $this->SendDebug('ProcessMQTTStateUpdate', 'Processing discovery config with ' . count($payload['config']) . ' fields', 0);
         $this->ProcessDiscoveryConfig($payload['config']);
