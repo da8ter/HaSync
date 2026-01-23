@@ -677,20 +677,21 @@ class HaMultiEntityDevice extends IPSModule
      */
     protected function ProcessDiscoveryConfigForEntity(string $entityId, array $config): void
     {
-        $skipKeys = ['device', 'availability', 'json_attributes_topic', 'state_topic', 'command_topic', 'availability_topic', 'schema', 'platform'];
+        $this->SendDebug('ProcessDiscoveryConfig', 'Processing ' . count($config) . ' config fields for ' . $entityId, 0);
+        $skipKeys = ['availability', 'json_attributes_topic', 'state_topic', 'command_topic', 'availability_topic', 'schema', 'platform'];
         $entityIdent = $this->BuildIdentForEntity($entityId);
         
         foreach ($config as $key => $value) {
-            if (in_array($key, $skipKeys, true)) {
-                continue;
-            }
-            
-            // Handle nested 'device' object - flatten important fields
+            // Handle nested 'device' object first - flatten important fields
             if ($key === 'device' && is_array($value)) {
                 foreach ($value as $devKey => $devVal) {
                     if ($devKey === 'identifiers') continue;
                     $this->CreateConfigVariableForEntity($entityIdent, 'device_' . $devKey, $devVal);
                 }
+                continue;
+            }
+            
+            if (in_array($key, $skipKeys, true)) {
                 continue;
             }
             

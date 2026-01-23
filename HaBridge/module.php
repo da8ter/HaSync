@@ -72,6 +72,15 @@ class HaBridge extends IPSModule
     }
     
     /**
+     * Clear the config hash cache to allow reprocessing of MQTT Discovery configs
+     */
+    public function ClearConfigCache(): void
+    {
+        $this->WriteAttributeString('ConfigHashCache', '{}');
+        $this->SendDebug('ClearConfigCache', 'Config cache cleared - configs will be reprocessed', 0);
+    }
+    
+    /**
      * Receive data from MQTT Server
      */
     public function ReceiveData($JSONString)
@@ -105,6 +114,7 @@ class HaBridge extends IPSModule
                         $payloadHash = md5($payload);
                         $hashCache = json_decode($this->ReadAttributeString('ConfigHashCache'), true) ?: [];
                         if (isset($hashCache[$entityId]) && $hashCache[$entityId] === $payloadHash) {
+                            $this->SendDebug('ReceiveData', 'Config for ' . $entityId . ' already processed (cached), skipping', 0);
                             return ''; // Bereits verarbeitet, überspringen
                         }
                         $decoded = json_decode($payload, true);
@@ -197,6 +207,11 @@ class HaBridge extends IPSModule
                 case 'UpdateSubscriptions':
                     // Refresh topic subscriptions (e.g., after creating Multi-Entity devices)
                     $this->SubscribeToTopics();
+                    break;
+                case 'ClearConfigCache':
+                    // Clear the config hash cache to allow reprocessing
+                    $this->WriteAttributeString('ConfigHashCache', '{}');
+                    $this->SendDebug('ForwardData', 'Config cache cleared', 0);
                     break;
                 default:
                     // Unknown action - ignore for now

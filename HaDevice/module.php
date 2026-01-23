@@ -182,10 +182,12 @@ class HaDevice extends IPSModule
             // Discovery Config weiterleiten (MQTT-only Geräte)
             if (isset($payload['config']) && is_array($payload['config'])) {
                 $out['config'] = $payload['config'];
+                $this->SendDebug('ReceiveData', 'Config received with ' . count($payload['config']) . ' fields', 0);
             }
         } elseif (is_string($payload) && $payload !== '') {
             $out['state'] = $payload;
         }
+        $this->SendDebug('ReceiveData', 'Forwarding to ProcessMQTTStateUpdate: ' . substr(json_encode($out), 0, 200), 0);
         $this->ProcessMQTTStateUpdate(json_encode($out));
     }
     
@@ -608,9 +610,10 @@ class HaDevice extends IPSModule
      */
     protected function ProcessDiscoveryConfig(array $config)
     {
+        $this->SendDebug('ProcessDiscoveryConfig', 'Processing ' . count($config) . ' config fields', 0);
+        
         // Skip meta keys that shouldn't become variables
         $skipKeys = [
-            'device',           // Nested device info object
             'availability',     // Availability configuration
             'json_attributes_topic',
             'state_topic',
@@ -621,21 +624,23 @@ class HaDevice extends IPSModule
         ];
         
         foreach ($config as $key => $value) {
-            if (in_array($key, $skipKeys, true)) {
-                continue;
-            }
-            
             // Handle nested 'device' object separately - flatten important fields
             if ($key === 'device' && is_array($value)) {
                 foreach ($value as $devKey => $devVal) {
                     if ($devKey === 'identifiers') {
                         continue; // Skip array of identifiers
                     }
+                    $this->SendDebug('ProcessDiscoveryConfig', 'Creating device_' . $devKey . ' = ' . (is_scalar($devVal) ? $devVal : json_encode($devVal)), 0);
                     $this->CreateConfigVariable('device_' . $devKey, $devVal);
                 }
                 continue;
             }
             
+            if (in_array($key, $skipKeys, true)) {
+                continue;
+            }
+            
+            $this->SendDebug('ProcessDiscoveryConfig', 'Creating ' . $key . ' = ' . (is_scalar($value) ? $value : json_encode($value)), 0);
             $this->CreateConfigVariable($key, $value);
         }
     }
