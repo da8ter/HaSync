@@ -547,6 +547,37 @@ class HaMultiEntityDevice extends IPSModule
         }
 
         $raw = $payload['state'];
+        
+        // Determine entity domain
+        $domain = '';
+        if (strpos($entityId, '.') !== false) {
+            $domain = substr($entityId, 0, strpos($entityId, '.'));
+        }
+        
+        // binary_sensor: Prüfen ob State ein JSON-Payload mit zusätzlichen Daten ist
+        if ($domain === 'binary_sensor' && is_string($raw) && strlen($raw) > 2) {
+            $trimmed = trim($raw);
+            if ($trimmed[0] === '{' && $trimmed[strlen($trimmed) - 1] === '}') {
+                $jsonState = json_decode($trimmed, true);
+                if (is_array($jsonState)) {
+                    $this->SendDebug('StateUpdate', 'binary_sensor JSON payload detected: ' . $trimmed, 0);
+                    // Extrahiere den eigentlichen State-Wert falls vorhanden
+                    if (isset($jsonState['state'])) {
+                        $raw = $jsonState['state'];
+                        unset($jsonState['state']);
+                    }
+                    // Merge restliche Felder als Attribute
+                    if (!empty($jsonState)) {
+                        if (!isset($payload['attributes'])) {
+                            $payload['attributes'] = [];
+                        }
+                        $payload['attributes'] = array_merge($payload['attributes'], $jsonState);
+                        $this->SendDebug('StateUpdate', 'Merged JSON attributes: ' . json_encode($jsonState), 0);
+                    }
+                }
+            }
+        }
+        
         $rawStr = is_scalar($raw) ? strtolower(trim((string)$raw)) : '';
         $isUnknown = in_array($rawStr, ['unavailable','unknown','none','null',''], true);
 
@@ -581,10 +612,6 @@ class HaMultiEntityDevice extends IPSModule
         $this->SetValueIfChangedByIdent($ident, $value);
 
         // Binary sensor: if no presentation set yet, set it once (respect user changes)
-        $domain = '';
-        if (strpos($entityId, '.') !== false) {
-            $domain = substr($entityId, 0, strpos($entityId, '.'));
-        }
         if ($domain === 'binary_sensor') {
             $meta = IPS_GetVariable($varId);
             $custom = isset($meta['VariableCustomPresentation']) && is_array($meta['VariableCustomPresentation'])

@@ -742,14 +742,41 @@ public function ProcessMQTTStateUpdate(string $data): bool
                 default:
                     $value = (string)$raw;
             }
+            // Determine entity domain
+            $entityDomain = '';
+            $dot = strpos($entityIdBase, '.');
+            if ($dot !== false) {
+                $entityDomain = substr($entityIdBase, 0, $dot);
+            }
+            
+            // binary_sensor: Prüfen ob State ein JSON-Payload mit zusätzlichen Daten ist
+            if ($entityDomain === 'binary_sensor' && is_string($raw) && strlen($raw) > 2) {
+                $trimmed = trim($raw);
+                if ($trimmed[0] === '{' && $trimmed[strlen($trimmed) - 1] === '}') {
+                    $jsonState = json_decode($trimmed, true);
+                    if (is_array($jsonState)) {
+                        $this->SendDebug('ProcessMQTTStateUpdate', 'binary_sensor JSON payload detected: ' . $trimmed, 0);
+                        // Extrahiere den eigentlichen State-Wert falls vorhanden
+                        if (isset($jsonState['state'])) {
+                            $innerState = strtolower(trim((string)$jsonState['state']));
+                            $value = in_array($innerState, ['on', 'true', '1', 'yes', 'home']);
+                            unset($jsonState['state']);
+                        }
+                        // Merge restliche Felder als Attribute für Variable-Erstellung
+                        if (!empty($jsonState)) {
+                            if (!isset($payload['attributes'])) {
+                                $payload['attributes'] = [];
+                            }
+                            $payload['attributes'] = array_merge($payload['attributes'], $jsonState);
+                            $this->SendDebug('ProcessMQTTStateUpdate', 'Merged JSON attributes: ' . json_encode($jsonState), 0);
+                        }
+                    }
+                }
+            }
+            
             if (!$skipStateSet) {
                 $this->SetValueIfChangedByIdent('Status', $value);
                 // Apply Value presentation with OPTIONS for binary_sensor (no switch)
-                $entityDomain = '';
-                $dot = strpos($entityIdBase, '.');
-                if ($dot !== false) {
-                    $entityDomain = substr($entityIdBase, 0, $dot);
-                }
                 if ($entityDomain === 'binary_sensor') {
                     // Apply presentation only if none exists yet (respect user's changes)
                     $varMeta = IPS_GetVariable($statusId);
