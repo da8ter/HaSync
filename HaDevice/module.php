@@ -599,6 +599,99 @@ class HaDevice extends IPSModule
     }
     
     /**
+     * Process MQTT Discovery Config and create variables for MQTT-only devices
+     * Diese Funktion verarbeitet Config-Daten von Geräten, die direkt per MQTT senden
+     */
+    protected function ProcessDiscoveryConfig(array $config)
+    {
+        // Skip meta keys that shouldn't become variables
+        $skipKeys = [
+            'device',           // Nested device info object
+            'availability',     // Availability configuration
+            'json_attributes_topic',
+            'state_topic',
+            'command_topic',
+            'availability_topic',
+            'schema',
+            'platform'
+        ];
+        
+        foreach ($config as $key => $value) {
+            if (in_array($key, $skipKeys, true)) {
+                continue;
+            }
+            
+            // Handle nested 'device' object separately - flatten important fields
+            if ($key === 'device' && is_array($value)) {
+                foreach ($value as $devKey => $devVal) {
+                    if ($devKey === 'identifiers') {
+                        continue; // Skip array of identifiers
+                    }
+                    $this->CreateConfigVariable('device_' . $devKey, $devVal);
+                }
+                continue;
+            }
+            
+            $this->CreateConfigVariable($key, $value);
+        }
+    }
+    
+    /**
+     * Create a single config variable
+     */
+    protected function CreateConfigVariable(string $key, $value)
+    {
+        // Skip arrays/objects that can't be simply represented
+        if (is_array($value) && !empty($value)) {
+            // Convert simple arrays to JSON string
+            $value = json_encode($value);
+        }
+        
+        if (!is_scalar($value) && $value !== null) {
+            return;
+        }
+        
+        $ident = 'HAS_' . preg_replace('/[^A-Za-z0-9_]/', '_', $key);
+        
+        // Determine variable type
+        $varType = VARIABLETYPE_STRING;
+        if (is_bool($value)) {
+            $varType = VARIABLETYPE_BOOLEAN;
+        } elseif (is_int($value)) {
+            $varType = VARIABLETYPE_INTEGER;
+        } elseif (is_float($value)) {
+            $varType = VARIABLETYPE_FLOAT;
+        }
+        
+        // Create or maintain the variable
+        $this->MaintainVariable($ident, $key, $varType, '', 0, true);
+        
+        $varId = @$this->GetIDForIdent($ident);
+        if ($varId === false) {
+            return;
+        }
+        
+        // Hide config variables by default
+        IPS_SetHidden($varId, true);
+        
+        // Set the value
+        switch ($varType) {
+            case VARIABLETYPE_BOOLEAN:
+                $boolValue = is_bool($value) ? $value : in_array(strtolower((string)$value), ['true', 'on', '1', 'yes'], true);
+                $this->SetValueIfChangedByIdent($ident, $boolValue);
+                break;
+            case VARIABLETYPE_INTEGER:
+                $this->SetValueIfChangedByIdent($ident, (int)$value);
+                break;
+            case VARIABLETYPE_FLOAT:
+                $this->SetValueIfChangedByIdent($ident, (float)$value);
+                break;
+            default:
+                $this->SetValueIfChangedByIdent($ident, (string)$value);
+        }
+    }
+    
+    /**
      * Get Home Assistant configuration from parent
      */
     protected function GetHAConfig(): array
@@ -867,7 +960,14 @@ public function ProcessMQTTStateUpdate(string $data): bool
         }
     }
 
-    /* ---------- 3) Letztes Update merken ---------- */
+    /* ---------- 3) MQTT Discovery Config verarbeiten (für MQTT-only Geräte) ---------- */
+    $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
+    if ($createExtra && isset($payload['config']) && is_array($payload['config'])) {
+        $this->SendDebug('ProcessMQTTStateUpdate', 'Processing discovery config with ' . count($payload['config']) . ' fields', 0);
+        $this->ProcessDiscoveryConfig($payload['config']);
+    }
+
+    /* ---------- 4) Letztes Update merken ---------- */
     $this->WriteAttributeString('LastMQTTUpdate', date('Y-m-d H:i:s'));
     return true;
 }

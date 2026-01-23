@@ -662,6 +662,83 @@ class HaMultiEntityDevice extends IPSModule
         if (isset($payload['attributes']) && is_array($payload['attributes']) && !empty($payload['attributes'])) {
             $this->ProcessAttributesForEntity($entityId, $payload['attributes']);
         }
+        
+        // Process MQTT Discovery Config (for MQTT-only devices)
+        $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
+        if ($createExtra && isset($payload['config']) && is_array($payload['config'])) {
+            $this->SendDebug('StateUpdate', 'Processing discovery config for ' . $entityId, 0);
+            $this->ProcessDiscoveryConfigForEntity($entityId, $payload['config']);
+        }
+    }
+    
+    /**
+     * Process MQTT Discovery Config for a specific entity
+     */
+    protected function ProcessDiscoveryConfigForEntity(string $entityId, array $config): void
+    {
+        $skipKeys = ['device', 'availability', 'json_attributes_topic', 'state_topic', 'command_topic', 'availability_topic', 'schema', 'platform'];
+        $entityIdent = $this->BuildIdentForEntity($entityId);
+        
+        foreach ($config as $key => $value) {
+            if (in_array($key, $skipKeys, true)) {
+                continue;
+            }
+            
+            // Handle nested 'device' object - flatten important fields
+            if ($key === 'device' && is_array($value)) {
+                foreach ($value as $devKey => $devVal) {
+                    if ($devKey === 'identifiers') continue;
+                    $this->CreateConfigVariableForEntity($entityIdent, 'device_' . $devKey, $devVal);
+                }
+                continue;
+            }
+            
+            $this->CreateConfigVariableForEntity($entityIdent, $key, $value);
+        }
+    }
+    
+    /**
+     * Create a single config variable for an entity
+     */
+    protected function CreateConfigVariableForEntity(string $entityIdent, string $key, $value): void
+    {
+        if (is_array($value) && !empty($value)) {
+            $value = json_encode($value);
+        }
+        if (!is_scalar($value) && $value !== null) {
+            return;
+        }
+        
+        $ident = 'HAS_' . $entityIdent . '_' . preg_replace('/[^A-Za-z0-9_]/', '_', $key);
+        
+        $varType = VARIABLETYPE_STRING;
+        if (is_bool($value)) {
+            $varType = VARIABLETYPE_BOOLEAN;
+        } elseif (is_int($value)) {
+            $varType = VARIABLETYPE_INTEGER;
+        } elseif (is_float($value)) {
+            $varType = VARIABLETYPE_FLOAT;
+        }
+        
+        $this->MaintainVariable($ident, $key, $varType, '', 0, true);
+        $varId = @$this->GetIDForIdent($ident);
+        if ($varId === false) return;
+        
+        IPS_SetHidden($varId, true);
+        
+        switch ($varType) {
+            case VARIABLETYPE_BOOLEAN:
+                $this->SetValueIfChangedByIdent($ident, is_bool($value) ? $value : in_array(strtolower((string)$value), ['true','on','1','yes'], true));
+                break;
+            case VARIABLETYPE_INTEGER:
+                $this->SetValueIfChangedByIdent($ident, (int)$value);
+                break;
+            case VARIABLETYPE_FLOAT:
+                $this->SetValueIfChangedByIdent($ident, (float)$value);
+                break;
+            default:
+                $this->SetValueIfChangedByIdent($ident, (string)$value);
+        }
     }
 
     /**
