@@ -543,6 +543,12 @@ class HaMultiEntityDevice extends IPSModule
             if (isset($payload['attributes']) && is_array($payload['attributes']) && !empty($payload['attributes'])) {
                 $this->ProcessAttributesForEntity($entityId, $payload['attributes']);
             }
+
+            $createExtra = $this->ReadPropertyBoolean('create_additional_vars');
+            if ($createExtra && isset($payload['config']) && is_array($payload['config'])) {
+                $this->SendDebug('StateUpdate', 'Processing discovery config for ' . $entityId, 0);
+                $this->ProcessDiscoveryConfigForEntity($entityId, $payload['config']);
+            }
             return;
         }
 

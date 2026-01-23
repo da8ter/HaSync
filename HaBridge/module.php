@@ -316,17 +316,19 @@ class HaBridge extends IPSModule
 
             // Support MQTT-only Geräte: homeassistant/<domain>/<device_id>/<object_id>/...
             // entityId ist domain.object_id
-            $dot = strpos((string)$entityId, '.');
-            if ($dot !== false) {
-                $domain = substr((string)$entityId, 0, $dot);
-                $objectId = substr((string)$entityId, $dot + 1);
-                if ($domain !== '' && $objectId !== '') {
-                    $baseWithDevice = $discoveryPrefix . '/' . $domain . '/+/' . $objectId;
-                    $ok2 = $this->SubscribeTopic($baseWithDevice . '/#');
-                    if (!$ok2) {
-                        $this->SubscribeTopic($baseWithDevice . '/state');
-                        $this->SubscribeTopic($baseWithDevice . '/attributes');
-                        $this->SubscribeTopic($baseWithDevice . '/config');
+            if (!$useFallbackAll) {
+                $dot = strpos((string)$entityId, '.');
+                if ($dot !== false) {
+                    $domain = substr((string)$entityId, 0, $dot);
+                    $objectId = substr((string)$entityId, $dot + 1);
+                    if ($domain !== '' && $objectId !== '') {
+                        $baseWithDevice = $discoveryPrefix . '/' . $domain . '/+/' . $objectId;
+                        $ok2 = $this->SubscribeTopic($baseWithDevice . '/#');
+                        if (!$ok2) {
+                            $this->SubscribeTopic($baseWithDevice . '/state');
+                            $this->SubscribeTopic($baseWithDevice . '/attributes');
+                            $this->SubscribeTopic($baseWithDevice . '/config');
+                        }
                     }
                 }
             }
@@ -348,12 +350,14 @@ class HaBridge extends IPSModule
             $topics[] = $base . '/#';
 
             // Store MQTT-only 4-segment subscription pattern as well
-            $dot = strpos((string)$eId, '.');
-            if ($dot !== false) {
-                $domain = substr((string)$eId, 0, $dot);
-                $objectId = substr((string)$eId, $dot + 1);
-                if ($domain !== '' && $objectId !== '') {
-                    $topics[] = $discoveryPrefix . '/' . $domain . '/+/' . $objectId . '/#';
+            if (!$useFallbackAll) {
+                $dot = strpos((string)$eId, '.');
+                if ($dot !== false) {
+                    $domain = substr((string)$eId, 0, $dot);
+                    $objectId = substr((string)$eId, $dot + 1);
+                    if ($domain !== '' && $objectId !== '') {
+                        $topics[] = $discoveryPrefix . '/' . $domain . '/+/' . $objectId . '/#';
+                    }
                 }
             }
         }

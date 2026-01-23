@@ -793,11 +793,18 @@ public function ProcessMQTTStateUpdate(string $data): bool
     if (!array_key_exists('state', $payload) && !array_key_exists('attributes', $payload)) {
         if (count($payload) > 1) {                          // außer entity_id gibt es noch Daten
             $attributesRaw = $payload;
-            unset($attributesRaw['entity_id']);
-            $payload = [
-                'entity_id'  => $payload['entity_id'],
-                'attributes' => $attributesRaw
+            unset($attributesRaw['entity_id'], $attributesRaw['config']);
+
+            $newPayload = [
+                'entity_id' => $payload['entity_id']
             ];
+            if (isset($payload['config']) && is_array($payload['config'])) {
+                $newPayload['config'] = $payload['config'];
+            }
+            if (!empty($attributesRaw)) {
+                $newPayload['attributes'] = $attributesRaw;
+            }
+            $payload = $newPayload;
         } else {
             return false;                                   // wirklich leer: ignorieren
         }
