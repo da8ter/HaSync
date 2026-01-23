@@ -174,10 +174,14 @@ class HaDevice extends IPSModule
                 $out['attributes'] = $payload['attributes'];
             } else {
                 $attr = $payload;
-                unset($attr['state']);
+                unset($attr['state'], $attr['config']);
                 if (!empty($attr)) {
                     $out['attributes'] = $attr;
                 }
+            }
+            // Discovery Config weiterleiten (MQTT-only Geräte)
+            if (isset($payload['config']) && is_array($payload['config'])) {
+                $out['config'] = $payload['config'];
             }
         } elseif (is_string($payload) && $payload !== '') {
             $out['state'] = $payload;
@@ -849,11 +853,13 @@ public function ProcessMQTTStateUpdate(string $data): bool
                     $jsonState = json_decode($trimmed, true);
                     if (is_array($jsonState)) {
                         $this->SendDebug('ProcessMQTTStateUpdate', 'binary_sensor JSON payload detected: ' . $trimmed, 0);
-                        // Extrahiere den eigentlichen State-Wert falls vorhanden
-                        if (isset($jsonState['state'])) {
-                            $innerState = strtolower(trim((string)$jsonState['state']));
-                            $value = in_array($innerState, ['on', 'true', '1', 'yes', 'home']);
-                            unset($jsonState['state']);
+                        // Extrahiere den eigentlichen State-Wert falls vorhanden (state oder status)
+                        $stateKey = isset($jsonState['state']) ? 'state' : (isset($jsonState['status']) ? 'status' : null);
+                        if ($stateKey !== null) {
+                            $innerState = strtolower(trim((string)$jsonState[$stateKey]));
+                            // "Normal" = OK/false, "Alarm"/"Warning" = true
+                            $value = in_array($innerState, ['on', 'true', '1', 'yes', 'home', 'alarm', 'warning', 'triggered']);
+                            unset($jsonState[$stateKey]);
                         }
                         // Merge restliche Felder als Attribute für Variable-Erstellung
                         if (!empty($jsonState)) {

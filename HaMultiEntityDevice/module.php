@@ -561,10 +561,11 @@ class HaMultiEntityDevice extends IPSModule
                 $jsonState = json_decode($trimmed, true);
                 if (is_array($jsonState)) {
                     $this->SendDebug('StateUpdate', 'binary_sensor JSON payload detected: ' . $trimmed, 0);
-                    // Extrahiere den eigentlichen State-Wert falls vorhanden
-                    if (isset($jsonState['state'])) {
-                        $raw = $jsonState['state'];
-                        unset($jsonState['state']);
+                    // Extrahiere den eigentlichen State-Wert falls vorhanden (state oder status)
+                    $stateKey = isset($jsonState['state']) ? 'state' : (isset($jsonState['status']) ? 'status' : null);
+                    if ($stateKey !== null) {
+                        $raw = $jsonState[$stateKey];
+                        unset($jsonState[$stateKey]);
                     }
                     // Merge restliche Felder als Attribute
                     if (!empty($jsonState)) {
