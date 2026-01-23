@@ -296,8 +296,13 @@ class HaBridge extends IPSModule
         // Global: subscribe to all discovery config topics (MQTT-only Geräte)
         // 3-Segment: <prefix>/<domain>/<object_id>/config
         // 4-Segment: <prefix>/<domain>/<device_id>/<object_id>/config
-        $this->SubscribeTopic($discoveryPrefix . '/+/+/config');
-        $this->SubscribeTopic($discoveryPrefix . '/+/+/+/config');
+        $okWildcard3 = $this->SubscribeTopic($discoveryPrefix . '/+/+/config');
+        $okWildcard4 = $this->SubscribeTopic($discoveryPrefix . '/+/+/+/config');
+        $useFallbackAll = (!$okWildcard3 || !$okWildcard4);
+        if ($useFallbackAll) {
+            $this->SendDebug('SubscribeToTopics', 'MQTT parent rejected + wildcards, falling back to: ' . $discoveryPrefix . '/#', 0);
+            $this->SubscribeTopic($discoveryPrefix . '/#');
+        }
         
         // Subscribe to all subtopics per Entity (state + attribute-spezifische Topics)
         $entities = $this->GetAllManagedEntities();
@@ -330,9 +335,13 @@ class HaBridge extends IPSModule
         // Store subscribed topics
         $topics = [];
 
-        // Store global wildcard config subscriptions
-        $topics[] = $discoveryPrefix . '/+/+/config';
-        $topics[] = $discoveryPrefix . '/+/+/+/config';
+        // Store global subscriptions
+        if ($useFallbackAll) {
+            $topics[] = $discoveryPrefix . '/#';
+        } else {
+            $topics[] = $discoveryPrefix . '/+/+/config';
+            $topics[] = $discoveryPrefix . '/+/+/+/config';
+        }
 
         foreach (array_keys($entities) as $eId) {
             $base = $discoveryPrefix . '/' . str_replace('.', '/', $eId);
